@@ -22,9 +22,18 @@ This method returns an array of Printer descriptions, including name and serial 
 
 This method returns an array of Printer descriptions, including name, IP address and port. Printer object is ready to be passed to `Zebra.selectPrinter`.
 
-### Zebra.selectPrinter(<printer>)
+### Zebra.selectPrinter({printer,callback}>)
 
 Before printing, you must select a printer. Pass in either an IP and port or a bluetooth serial number.
+
+#### Arguments
+
+Takes one argument, a dictionary with the following keys:
+
+* serialNumber[string] (optional): Serial Number of the bluetooth printer. Either this or `ipAddress` and `port` are required.
+* ipAddress[string] (optional): IP Address of the network printer. Must also include a `port` param. Either this or `serialNumber` are required.
+* port[int] (optional): TCP Port for the network printer. Required if `ipAddress` is used.
+* callback[function] (optional): Callback function. Returns one object, with `success (boolean)` and `message (string)` properties.
 
 ### Zebra.print({...})
 

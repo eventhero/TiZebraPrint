@@ -234,6 +234,9 @@
     NSString *ipAddress = [TiUtils stringValue:@"ipAddress" properties:args];
     NSInteger port = [TiUtils intValue:@"port" properties:args];
     
+    // success/error callback
+    KrollCallback* callback = [args objectForKey:@"callback"];
+    
     NSLog(@"[INFO] [TiZebraPrint] args %@",args);
     
     if(self.connection) {
@@ -254,6 +257,16 @@
         [self.connection open];
         self.printer = [ZebraPrinterFactory getInstance:self.connection error:&error];
         NSLog(@"[INFO] [TiZebraPrint] testing printerfactory for errors %@",error);
+        
+        if(callback){
+            NSMutableDictionary *event = [NSMutableDictionary dictionary];
+            [event setValue:NUMBOOL(!error) forKey:@"success"];
+            if (error) {
+                [event setValue:error.code forKey:@"code"];
+                [event setValue:error.localizedDescription forKey:@"message"];
+            }
+            [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
+        }
     });
 }
 
