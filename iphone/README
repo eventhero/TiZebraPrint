@@ -1,0 +1,56 @@
+# Zebra Print Module [![gitTio](http://gitt.io/badge.svg)](http://gitt.io/component/io.eventhero.tizebraprint)
+
+## Description
+
+The Zebra Print module extends the Appcelerator Titanium Mobile framework. 
+The module is licensed under the MIT license.
+
+Currently the module is iOS only, with plans to develop for Android.
+
+## Quick Start
+
+### Get it
+Download the latest distribution ZIP-file and consult the [Titanium Documentation](http://docs.appcelerator.com/titanium/latest/#!/guide/Using_a_Module) on how install it
+
+Or simply use the [gitTio CLI](http://gitt.io/cli) [![gitTio](http://gitt.io/badge.svg)](http://gitt.io/component/io.eventhero.tizebraprint)
+
+`$ gittio install io.eventhero.tizebraprint`
+
+### Prepare for use
+
+For iOS bluetooth support, you will need to add these to your info.plist section of your tiapp.xml file:
+
+```
+<key>UISupportedExternalAccessoryProtocols</key>
+<array>
+	<string>com.zebra.rawport</string>
+</array>
+<key>UIBackgroundModes</key>
+<array>
+	<string>external-accessory</string>
+</array>
+```
+
+See TiZebraPrintExample for usage.
+
+## License
+
+    Copyright (c) 2015 EventHero
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
