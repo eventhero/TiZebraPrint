@@ -178,7 +178,7 @@
             return YES;
         }
     } else {
-        NSLog(@"[INFO] [TiZebraPrint] Could not detect printer language. Did you set properties in info.plist? %@",error);
+        NSLog(@"[INFO] [TiZebraPrint] Could not detect printer language. Did you set properties in info.plist?");
         return NO;
     }
 }
@@ -231,39 +231,41 @@
     // we need either the Bluetooth serial number OR the network IP & Port
     NSString *serialNumber = [TiUtils stringValue:@"serialNumber" properties:args];
     
-    NSString *ipAddress = [TiUtils stringValue:@"ipAddress" properties:args];
+    NSString *ip = [TiUtils stringValue:@"ip" properties:args];
     NSInteger port = [TiUtils intValue:@"port" properties:args];
     
     // success/error callback
     KrollCallback* callback = [args objectForKey:@"callback"];
     
-    NSLog(@"[INFO] [TiZebraPrint] args %@",args);
+    NSLog(@"[INFO] [TiZebraPrint] selectPrinter args %@",args);
     
     if(self.connection) {
         NSLog(@"[INFO] [TiZebraPrint] closing connection");
         [self.connection close];
     }
-
+    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         if(serialNumber) {
             // bluetooth!
             self.connection = [[MfiBtPrinterConnection alloc] initWithSerialNumber:serialNumber];
         } else {
             // network!
-            self.connection = [[TcpPrinterConnection alloc] initWithAddress:ipAddress andWithPort:port];
+            self.connection = [[TcpPrinterConnection alloc] initWithAddress:ip andWithPort:port];
         }
         
         NSError *error = nil;
         [self.connection open];
         self.printer = [ZebraPrinterFactory getInstance:self.connection error:&error];
-        NSLog(@"[INFO] [TiZebraPrint] testing printerfactory for errors %@",error);
         
         if(callback){
             NSMutableDictionary *event = [NSMutableDictionary dictionary];
-            [event setValue:NUMBOOL(!error) forKey:@"success"];
             if (error) {
+                NSLog(@"[INFO] [TiZebraPrint] printerfactory error %@",error);
+                [event setValue:NUMBOOL(NO) forKey:@"success"];
                 [event setValue:error.code forKey:@"code"];
                 [event setValue:error.localizedDescription forKey:@"message"];
+            } else {
+                [event setValue:NUMBOOL(YES) forKey:@"success"];
             }
             [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
         }
@@ -274,7 +276,7 @@
 {
     ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
     
-    NSLog(@"[INFO] [TiZebraPrint] args %@",args);
+    NSLog(@"[INFO] [TiZebraPrint] print() args %@",args);
     
     // success/error callback
     KrollCallback* callback = [args objectForKey:@"callback"];
