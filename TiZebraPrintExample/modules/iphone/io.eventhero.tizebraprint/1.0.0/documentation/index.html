@@ -1,40 +1,40 @@
 <h1>tizebraprint Module</h1>
-
 <h2>Description</h2>
-
 <p>TODO: Enter your module description here</p>
-
 <h2>Accessing the tizebraprint Module</h2>
-
 <p>To access this module from JavaScript, you would do the following:</p>
-
-<pre><code>var tizebraprint = require("io.eventhero.tizebraprint");
+<pre><code>var Zebra = require('io.eventhero.tizebraprint');
 </code></pre>
-
-<p>The tizebraprint variable is a reference to the Module object.</p>
-
+<p>The Zebra variable is a reference to the Module object.</p>
 <h2>Reference</h2>
-
-<p>TODO: If your module has an API, you should document
-the reference here.</p>
-
-<h3>tizebraprint.function</h3>
-
-<p>TODO: This is an example of a module function.</p>
-
-<h3>tizebraprint.property</h3>
-
-<p>TODO: This is an example of a module property.</p>
-
+<h3>Zebra.findBluetoothPrinters</h3>
+<p>This method returns an array of Printer descriptions, including name and serial number. Printer object is ready to be passed to <code>Zebra.selectPrinter</code>.</p>
+<h3>Zebra.findNetworkPrinters</h3>
+<p>This method returns an array of Printer descriptions, including name, IP address and port. Printer object is ready to be passed to <code>Zebra.selectPrinter</code>.</p>
+<h3>Zebra.selectPrinter({printer,callback}&gt;)</h3>
+<p>Before printing, you must select a printer. Pass in either an IP and port or a bluetooth serial number.</p>
+<h4>Arguments</h4>
+<p>Takes one argument, a dictionary with the following keys:</p>
+<ul>
+<li>serialNumber[string] (optional): Serial Number of the bluetooth printer. Either this or <code>ipAddress</code> and <code>port</code> are required.</li>
+<li>ipAddress[string] (optional): IP Address of the network printer. Must also include a <code>port</code> param. Either this or <code>serialNumber</code> are required.</li>
+<li>port[int] (optional): TCP Port for the network printer. Required if <code>ipAddress</code> is used.</li>
+<li>callback[function] (optional): Callback function. Returns one object, with <code>success (boolean)</code> and <code>message (string)</code> properties.</li>
+</ul>
+<h3>Zebra.print({...})</h3>
+<p>Method used to print to the selected printer.</p>
+<h4>Arguments</h4>
+<p>Takes one argument, a dictionary with the following keys:</p>
+<ul>
+<li>image[TiBlob]: An image blob to be printed. Either this field is required, or <code>pdf</code> is required.</li>
+<li>pdf[string]: Fully qualified path to a PDF file. Use <code>Ti.File.resolve()</code> to get said path. Either this field is required, or <code>image</code> is required.</li>
+<li>page[int] (optional): Page of the PDF file to print. If you pass "0", all pages will print. Default "0".</li>
+<li>callback[function] (optional): Callback function. Returns one object, with <code>success (boolean)</code> and <code>message (string)</code> properties.</li>
+<li>x[int] (optional): Horizontal starting position in dots. Default "0".</li>
+<li>y[int] (optional): Vertical starting position in dots.. Default "0".</li>
+<li>width[int] (optional): Desired width of the printed image. Passing -1 will preserve original width. Default "-1".</li>
+<li>height[int] (optional): Desired height of the printed image. Passing -1 will preserve original height. Default "-1".</li>
+<li>isInsideFormat[boolean] (optional): Boolean value indicating whether this image should be printed by itself (NO), or is part of a format being written to the connection (YES). Default "false".</li>
+</ul>
 <h2>Usage</h2>
-
-<p>TODO: Enter your usage example here</p>
-
-<h2>Author</h2>
-
-<p>TODO: Enter your author name, email and other contact
-details you want to share here.</p>
-
-<h2>License</h2>
-
-<p>TODO: Enter your license/legal information here.</p>
+<p>See TiZebraPrintExample in this repo.</p>

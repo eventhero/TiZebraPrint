@@ -18,36 +18,52 @@ var findPrinters = function(){
 	printerTable.data = [];
 	var rows = [{title:'Search Again'}];
 
-	var bluetoothPrinters = Zebra.findBluetoothPrinters();
-	for (var i in bluetoothPrinters) {
-		rows.push({
-			printer:bluetoothPrinters[i],
-			title:bluetoothPrinters[i].name,
-		});
-	}
+	Zebra.findBluetoothPrinters({callback:function(e){
+        if (!e.success) {
+            alert(e.message);
+            printerTable.data = rows;
+            return;
+        }
+        
+    	for (var i in e.printers) {
+            // add the row
+    		rows.push({
+    			printer:e.printers[i],
+    			title:e.printers[i].name,
+    		});
+    	}
+        printerTable.data = rows;
+	}});
 	
-	var networkPrinters = Zebra.findNetworkPrinters();
-	for (var i in networkPrinters) {
-		rows.push({
-			printer:networkPrinters[i],
-			title:networkPrinters[i].name,
-		});
-	}
-
-	printerTable.data = rows;
+	Zebra.findNetworkPrinters({callback:function(e){
+        if (!e.success) {
+            alert(e.message);
+            printerTable.data = rows;
+            return;
+        }
+        
+    	for (var i in e.printers) {
+    		rows.push({
+    			printer:e.printers[i],
+    			title:e.printers[i].name,
+    		});
+    	}
+        printerTable.data = rows;
+	}});
 }
 
 printerTable.addEventListener('click',function(e){
 	if (!e.row.printer) {
 		findPrinters();
 	} else {
-		Zebra.selectPrinter(e.row.printer); // the get printer calls return an object compatable with this method to choose the printer.
+        var thisPrinter = e.row.printer;
+        
 		var d = Ti.UI.createOptionDialog({
 			title:'Choose option to print:',
 			options:['Image','PDF 1 Page','PDF All Pages','Cancel'],
 		});
-		d.addEventListener('click',function(e){
-			if (e.index === 0) {
+		d.addEventListener('click',function(c){
+			if (c.index === 0) {
 				// print image
 				var imageFile = Ti.Filesystem.getFile(Ti.Filesystem.resourcesDirectory,'test.png');
 				var imageBlob = imageFile.read();
@@ -62,7 +78,7 @@ printerTable.addEventListener('click',function(e){
 						}
 					}
 				});
-			} else if (e.index === 1) {
+			} else if (c.index === 1) {
 				// print first page
 				var pdfFile = Ti.Filesystem.getFile(Ti.Filesystem.resourcesDirectory,'test.pdf');
 				var pdfBlob = pdfFile.read();
@@ -78,7 +94,7 @@ printerTable.addEventListener('click',function(e){
 						}
 					}
 				});
-			} else if (e.index === 2) {
+			} else if (c.index === 2) {
 				// print all pages
 				var pdfFile = Ti.Filesystem.getFile(Ti.Filesystem.resourcesDirectory,'test.pdf');
 				var pdfURL = pdfFile.resolve();
@@ -95,7 +111,37 @@ printerTable.addEventListener('click',function(e){
 				});
 			}
 		});
-		d.show();
+        
+        Zebra.selectPrinter({
+            serialNumber:thisPrinter.serialNumber,
+            ip:thisPrinter.ip,
+            port:thisPrinter.port,
+            callback:function(x){
+                if (!x.success) {
+                    alert(x.message);
+                    return;
+                }
+                
+                // get the status
+                Zebra.getPrinterStatus({
+/* we could specify the printer connection, but we already selected it
+                    serialNumber:thisPrinter.serialNumber,
+                    ip:thisPrinter.ip,
+                    port:thisPrinter.port,
+*/
+                    callback:function(status){
+                        Ti.API.info('printer status: '+JSON.stringify(status));
+            
+                        if (!status.success) {
+                            alert(status.message);
+                            return;
+                        }
+
+                		d.show();
+                    }
+                });
+            }
+        });
 	}
 });
 
