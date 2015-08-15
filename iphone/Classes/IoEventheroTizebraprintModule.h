@@ -14,8 +14,6 @@
 {
 }
 
-@property (nonatomic, retain) NSMutableArray *networkPrintersList;
-@property (nonatomic,retain) NSMutableArray *bluetoothPrintersList;
 @property (nonatomic, retain) id<ZebraPrinterConnection, NSObject> connection;
 @property (nonatomic, retain) id<ZebraPrinter, NSObject> printer;
 

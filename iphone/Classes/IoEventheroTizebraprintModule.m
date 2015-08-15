@@ -22,8 +22,6 @@
 
 @implementation IoEventheroTizebraprintModule
 
-@synthesize networkPrintersList;
-@synthesize bluetoothPrintersList;
 @synthesize connection;
 @synthesize printer;
 
@@ -71,8 +69,6 @@
         NSLog(@"[INFO] [TiZebraPrint] closing connection");
         [self.connection close];
     }
-    [networkPrintersList release];
-    [bluetoothPrintersList release];
     [connection release];
     [printer release];
 
@@ -187,73 +183,71 @@
 
 -(id)findBluetoothPrinters:(id)args
 {
-    ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
-    // success/error callback
-    KrollCallback* callback = [args objectForKey:@"callback"];
+    KrollCallback* callback = nil;
+    ENSURE_SINGLE_ARG(args, NSDictionary);
+    ENSURE_ARG_FOR_KEY(callback,args,@"callback",KrollCallback)
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSMutableArray *printers = [NSMutableArray array];
+
         NSLog(@"[INFO] [TiZebraPrint] getting bluetooth printers");
-        EAAccessoryManager *manager = [EAAccessoryManager sharedAccessoryManager];
-        self.bluetoothPrintersList = [[NSMutableArray alloc] initWithArray:manager.connectedAccessories];
-        
-        NSMutableArray *printers = [[[NSMutableArray alloc]init] autorelease];
-        for (EAAccessory *accessory in self.bluetoothPrintersList) {
-            [printers addObject:[[NSDictionary dictionaryWithObjectsAndKeys:@"bluetooth",@"kind",accessory.name,@"name",accessory.serialNumber,@"serialNumber", nil] autorelease]];
+        NSArray *accessories = [[EAAccessoryManager sharedAccessoryManager] connectedAccessories];
+        for (EAAccessory *accessory in accessories) {
+            if([accessory.protocolStrings indexOfObject:@"com.zebra.rawport"] != NSNotFound){
+                [printers addObject:[NSDictionary dictionaryWithObjectsAndKeys:@"bluetooth",@"kind",accessory.name,@"name",accessory.serialNumber,@"serialNumber", nil]];
+            }
         }
         
-        if(callback){
-            NSMutableDictionary *event = [NSMutableDictionary dictionary];
-            [event setObject:printers forKey:@"printers"];
-            [event setValue:NUMBOOL(YES) forKey:@"success"];
-            
-            [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
-        }
+        NSMutableDictionary *event = [NSMutableDictionary dictionary];
+        [event setValue:NUMBOOL(YES) forKey:@"success"];
+        [event setObject:printers forKey:@"printers"];
+
+        [callback call:[NSArray arrayWithObject:event] thisObject:self];
     });
+    return NUMBOOL(YES); // need to return something or Kroll crashes
 }
 
 -(id)findNetworkPrinters:(id)args
 {
-    ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
-    // success/error callback
-    KrollCallback* callback = [args objectForKey:@"callback"];
+    KrollCallback* callback = nil;
+    ENSURE_SINGLE_ARG(args, NSDictionary);
+    ENSURE_ARG_FOR_KEY(callback,args,@"callback",KrollCallback)
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"[INFO] [TiZebraPrint] getting network printers");
         NSError *error = nil;
-        NSMutableArray *printers = [[[NSMutableArray alloc]init] autorelease];
-        self.networkPrintersList = [[NSMutableArray alloc] initWithArray:[NetworkDiscoverer localBroadcast:&error]];
-        NSLog(@"[INFO] [TiZebraPrint] NetworkDiscoverer ? %@",error);
-        
-        for (DiscoveredPrinterNetwork *d in self.networkPrintersList) {
-            NSLog(@"[INFO] [TiZebraPrint] ip: %@ port: %i dnsName: %@",d.address,d.port,d.dnsName);
-            NSString *ip = d.address;
-            NSNumber *port = [NSNumber numberWithInt:d.port];
-            NSString *name = d.dnsName;
-
-            NSMutableDictionary *thisPrinter = [NSMutableDictionary dictionary];
-            [thisPrinter setValue:@"network" forKey:@"kind"];
-            [thisPrinter setValue:name forKey:@"name"];
-            [thisPrinter setValue:ip forKey:@"ip"];
-            [thisPrinter setValue:port forKey:@"port"];
-
-            [printers addObject:thisPrinter];
+        NSMutableArray *printers = [NSMutableArray array];
+        NSArray *networkPrintersList = [NetworkDiscoverer localBroadcast:&error];
+        if (error) {
+            NSLog(@"[ERROR] [TiZebraPrint] NetworkDiscoverer ? %@",error);
             
-        }
-        
-        if(callback){
             NSMutableDictionary *event = [NSMutableDictionary dictionary];
-            if (error) {
-                [event setValue:NUMBOOL(NO) forKey:@"success"];
-                [event setValue:error.code forKey:@"code"];
-                [event setValue:error.localizedDescription forKey:@"message"];
-            } else {
-                [event setValue:NUMBOOL(YES) forKey:@"success"];
+            [event setValue:NUMBOOL(NO) forKey:@"success"];
+            [event setValue:error.code forKey:@"code"];
+            [event setValue:error.localizedDescription forKey:@"message"];
+            
+            [callback call:[NSArray arrayWithObject:event] thisObject:self];
+        
+        } else {
+            for (DiscoveredPrinterNetwork *d in networkPrintersList) {
+                NSLog(@"[INFO] [TiZebraPrint] ip: %@ port: %i dnsName: %@", d.address, d.port, d.dnsName);
+                
+                NSMutableDictionary *thisPrinter = [NSMutableDictionary dictionary];
+                [thisPrinter setValue:@"network" forKey:@"kind"];
+                [thisPrinter setValue:d.dnsName forKey:@"name"];
+                [thisPrinter setValue:d.address forKey:@"ip"];
+                [thisPrinter setValue:NUMLONG(d.port) forKey:@"port"];
+                
+                [printers addObject:thisPrinter];
             }
+            NSMutableDictionary *event = [NSMutableDictionary dictionary];
+            [event setValue:NUMBOOL(YES) forKey:@"success"];
             [event setObject:printers forKey:@"printers"];
             
-            [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
+            [callback call:[NSArray arrayWithObject:event] thisObject:self];
         }
     });
+    return NUMBOOL(YES); // need to return something or Kroll crashes
 }
 
 -(id)getPrinterStatus:(id)args
@@ -298,7 +292,7 @@
                     [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
                 }
                 [c close];
-                
+                [c release];
                 return;
             }
             
