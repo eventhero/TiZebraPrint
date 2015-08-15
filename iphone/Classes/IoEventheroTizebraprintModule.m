@@ -107,6 +107,31 @@
 
 #pragma private methods
 
+-(KrollCallback *)extractCallbackFrom:(id)args
+{
+    KrollCallback* callback = nil;
+    ENSURE_SINGLE_ARG(args, NSDictionary);
+    ENSURE_ARG_FOR_KEY(callback,args,@"callback",KrollCallback)
+    return callback;
+}
+
+-(void) performErrorCallback:(KrollCallback *)callback withError:(NSError *)error {
+    NSMutableDictionary *event = [NSMutableDictionary dictionary];
+    [event setValue:NUMBOOL(NO) forKey:@"success"];
+    [event setValue:error.code forKey:@"code"];
+    [event setValue:error.localizedDescription forKey:@"message"];
+    
+    [callback call:[NSArray arrayWithObject:event] thisObject:self];
+}
+
+-(void) performSuccessCallback:(KrollCallback *)callback withKey:(NSString *)key andValue:(id)value {
+    NSMutableDictionary *event = [NSMutableDictionary dictionary];
+    [event setValue:NUMBOOL(YES) forKey:@"success"];
+    [event setObject:value forKey:key];
+    
+    [callback call:[NSArray arrayWithObject:event] thisObject:self];
+}
+
 -(UIImage *)imageFromPDF:(CGPDFDocumentRef)pdf
                     page:(NSUInteger)pageNumber {
     
@@ -183,9 +208,7 @@
 
 -(id)findBluetoothPrinters:(id)args
 {
-    KrollCallback* callback = nil;
-    ENSURE_SINGLE_ARG(args, NSDictionary);
-    ENSURE_ARG_FOR_KEY(callback,args,@"callback",KrollCallback)
+    KrollCallback* callback = [self extractCallbackFrom:args];
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSMutableArray *printers = [NSMutableArray array];
@@ -197,38 +220,24 @@
                 [printers addObject:[NSDictionary dictionaryWithObjectsAndKeys:@"bluetooth",@"kind",accessory.name,@"name",accessory.serialNumber,@"serialNumber", nil]];
             }
         }
-        
-        NSMutableDictionary *event = [NSMutableDictionary dictionary];
-        [event setValue:NUMBOOL(YES) forKey:@"success"];
-        [event setObject:printers forKey:@"printers"];
-
-        [callback call:[NSArray arrayWithObject:event] thisObject:self];
+        [self performSuccessCallback:callback withKey:@"printers" andValue:printers];
     });
     return NUMBOOL(YES); // need to return something or Kroll crashes
 }
 
 -(id)findNetworkPrinters:(id)args
 {
-    KrollCallback* callback = nil;
-    ENSURE_SINGLE_ARG(args, NSDictionary);
-    ENSURE_ARG_FOR_KEY(callback,args,@"callback",KrollCallback)
+    KrollCallback* callback = [self extractCallbackFrom:args];
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"[INFO] [TiZebraPrint] getting network printers");
         NSError *error = nil;
-        NSMutableArray *printers = [NSMutableArray array];
         NSArray *networkPrintersList = [NetworkDiscoverer localBroadcast:&error];
         if (error) {
             NSLog(@"[ERROR] [TiZebraPrint] NetworkDiscoverer ? %@",error);
-            
-            NSMutableDictionary *event = [NSMutableDictionary dictionary];
-            [event setValue:NUMBOOL(NO) forKey:@"success"];
-            [event setValue:error.code forKey:@"code"];
-            [event setValue:error.localizedDescription forKey:@"message"];
-            
-            [callback call:[NSArray arrayWithObject:event] thisObject:self];
-        
+            [self performErrorCallback:callback withError:error];
         } else {
+            NSMutableArray *printers = [NSMutableArray array];
             for (DiscoveredPrinterNetwork *d in networkPrintersList) {
                 NSLog(@"[INFO] [TiZebraPrint] ip: %@ port: %i dnsName: %@", d.address, d.port, d.dnsName);
                 
@@ -236,15 +245,11 @@
                 [thisPrinter setValue:@"network" forKey:@"kind"];
                 [thisPrinter setValue:d.dnsName forKey:@"name"];
                 [thisPrinter setValue:d.address forKey:@"ip"];
-                [thisPrinter setValue:NUMLONG(d.port) forKey:@"port"];
+                [thisPrinter setValue:NUMINTEGER(d.port) forKey:@"port"];
                 
                 [printers addObject:thisPrinter];
             }
-            NSMutableDictionary *event = [NSMutableDictionary dictionary];
-            [event setValue:NUMBOOL(YES) forKey:@"success"];
-            [event setObject:printers forKey:@"printers"];
-            
-            [callback call:[NSArray arrayWithObject:event] thisObject:self];
+            [self performSuccessCallback:callback withKey:@"printers" andValue:printers];
         }
     });
     return NUMBOOL(YES); // need to return something or Kroll crashes
@@ -377,9 +382,9 @@
                     [event setValue:NUMBOOL(status.isRibbonOut) forKey:@"isRibbonOut"];
                     [event setValue:NUMBOOL(status.isReceiveBufferFull) forKey:@"isReceiveBufferFull"];
                     [event setValue:NUMBOOL(status.isPaused) forKey:@"isPaused"];
-                    [event setValue:[NSNumber numberWithInt:status.labelLengthInDots] forKey:@"labelLengthInDots"];
-                    [event setValue:[NSNumber numberWithInt:status.numberOfFormatsInReceiveBuffer] forKey:@"numberOfFormatsInReceiveBuffer"];
-                    [event setValue:[NSNumber numberWithInt:status.labelsRemainingInBatch] forKey:@"labelsRemainingInBatch"];
+                    [event setValue:NUMINTEGER(status.labelLengthInDots) forKey:@"labelLengthInDots"];
+                    [event setValue:NUMINTEGER(status.numberOfFormatsInReceiveBuffer) forKey:@"numberOfFormatsInReceiveBuffer"];
+                    [event setValue:NUMINTEGER(status.labelsRemainingInBatch) forKey:@"labelsRemainingInBatch"];
                     [event setValue:NUMBOOL(status.isPartialFormatInProgress) forKey:@"isPartialFormatInProgress"];
                     // TODO: Create printMode constants / Return printMode
                 } else {
