@@ -22,9 +22,6 @@
 
 @implementation IoEventheroTizebraprintModule
 
-@synthesize connection;
-@synthesize printer;
-
 #pragma mark Internal
 
 // this is generated for your module, please do not change it
@@ -65,13 +62,6 @@
 -(void)dealloc
 {
 	// release any resources that have been retained by the module
-    if(self.connection) {
-        NSLog(@"[INFO] [TiZebraPrint] closing connection");
-        [self.connection close];
-    }
-    [connection release];
-    [printer release];
-
     [super dealloc];
 }
 
@@ -124,6 +114,22 @@
     [callback call:[NSArray arrayWithObject:event] thisObject:self];
 }
 
+-(void) performErrorCallback:(KrollCallback *)callback withCode:(NSNumber *)code andMessage:(NSString *)message {
+    NSMutableDictionary *event = [NSMutableDictionary dictionary];
+    [event setValue:NUMBOOL(NO) forKey:@"success"];
+    [event setValue:code forKey:@"code"];
+    [event setValue:message forKey:@"message"];
+    
+    [callback call:[NSArray arrayWithObject:event] thisObject:self];
+}
+
+-(void) performSuccessCallback:(KrollCallback *)callback {
+    NSMutableDictionary *event = [NSMutableDictionary dictionary];
+    [event setValue:NUMBOOL(YES) forKey:@"success"];
+    
+    [callback call:[NSArray arrayWithObject:event] thisObject:self];
+}
+
 -(void) performSuccessCallback:(KrollCallback *)callback withKey:(NSString *)key andValue:(id)value {
     NSMutableDictionary *event = [NSMutableDictionary dictionary];
     [event setValue:NUMBOOL(YES) forKey:@"success"];
@@ -131,6 +137,49 @@
     
     [callback call:[NSArray arrayWithObject:event] thisObject:self];
 }
+
+-(id<ZebraPrinterConnection, NSObject>)connectionFrom:(id)args {
+    // we need either the Bluetooth serial number OR the network IP & Port
+    NSString *serialNumber = [TiUtils stringValue:@"serialNumber" properties:args];
+    NSString *ip = [TiUtils stringValue:@"ip" properties:args];
+    NSInteger port = [TiUtils intValue:@"port" properties:args];
+    
+    if(serialNumber) {
+        // bluetooth!
+        NSLog(@"[DEBUG] [TiZebraPrint] Connecting to Bluetooth SN:%@", serialNumber);
+        return [[[MfiBtPrinterConnection alloc] initWithSerialNumber:serialNumber] autorelease];
+    } else {
+        // network!
+        NSLog(@"[DEBUG] [TiZebraPrint] Connecting to IP:%@:%@", ip, port);
+        return [[[TcpPrinterConnection alloc] initWithAddress:ip andWithPort:port] autorelease];
+    }
+}
+
+-(void)openConnection:(id)args withCallback:(void(^)(id<ZebraPrinterConnection,NSObject>))callback {
+    id<ZebraPrinterConnection, NSObject> connection = [self connectionFrom:args];
+    NSLog(@"[DEBUG] [TiZebraPrint] opening connection");
+    BOOL success = [connection open];
+    NSLog(@"[DEBUG] [TiZebraPrint] opening connection result: %@", success);
+    callback(connection);
+    NSLog(@"[DEBUG] [TiZebraPrint] closing connection");
+    [connection close];
+    // connection is autoreleased
+}
+
+-(void)connectToPrinter:(id)args withCallback:(void(^)(NSError *, id<ZebraPrinter,NSObject>))callback {
+    [self openConnection:args withCallback:^(id<ZebraPrinterConnection, NSObject> connection) {
+        NSError *error = nil;
+        id<ZebraPrinter, NSObject> printer = [ZebraPrinterFactory getInstance:connection error:&error];
+        if (error || !printer) {
+            NSLog(@"[ERROR] [TiZebraPrint] printer factory error %@", error);
+            NSLog(@"[ERROR] [TiZebraPrint] Did you set properties in info.plist?");
+            callback(error, nil);
+        } else {
+            callback(nil, printer);
+        }
+    }];
+}
+
 
 -(UIImage *)imageFromPDF:(CGPDFDocumentRef)pdf
                     page:(NSUInteger)pageNumber {
@@ -178,6 +227,7 @@
 }
 
 -(id)printImage:(CGImageRef)image
+      toPrinter:(id<ZebraPrinter, NSObject>)printer
               x:(NSInteger)x
               y:(NSInteger)y
          height:(NSInteger)height
@@ -185,9 +235,9 @@
  isInsideFormat:(BOOL)isInsideFormat
           error:(NSError**)error {
 
-    if(self.printer != nil) {
+    if(printer != nil) {
         NSLog(@"[INFO] [TiZebraPrint] printer instance created");
-        id<GraphicsUtil, NSObject> graphicsUtil = [self.printer getGraphicsUtil];
+        id<GraphicsUtil, NSObject> graphicsUtil = [printer getGraphicsUtil];
         
         BOOL success = [graphicsUtil printImage:image atX:x atY:y withWidth:width withHeight:height andIsInsideFormat:isInsideFormat error:error];
         
@@ -206,7 +256,7 @@
 
 #pragma Public APIs
 
--(id)findBluetoothPrinters:(id)args
+-(void)findBluetoothPrinters:(id)args
 {
     KrollCallback* callback = [self extractCallbackFrom:args];
     
@@ -222,10 +272,9 @@
         }
         [self performSuccessCallback:callback withKey:@"printers" andValue:printers];
     });
-    return NUMBOOL(YES); // need to return something or Kroll crashes
 }
 
--(id)findNetworkPrinters:(id)args
+-(void)findNetworkPrinters:(id)args
 {
     KrollCallback* callback = [self extractCallbackFrom:args];
 
@@ -252,261 +301,113 @@
             [self performSuccessCallback:callback withKey:@"printers" andValue:printers];
         }
     });
-    return NUMBOOL(YES); // need to return something or Kroll crashes
 }
 
--(id)getPrinterStatus:(id)args
+-(void)getPrinterStatus:(id)args
 {
-    ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
-    // we need either the Bluetooth serial number OR the network IP & Port
-    NSString *serialNumber = [TiUtils stringValue:@"serialNumber" properties:args];
-    
-    NSString *ip = [TiUtils stringValue:@"ip" properties:args];
-    NSInteger port = [TiUtils intValue:@"port" properties:args];
-    
-    // success/error callback
-    KrollCallback* callback = [args objectForKey:@"callback"];
-    
     NSLog(@"[INFO] [TiZebraPrint] getPrinterStatus args %@",args);
+
+    KrollCallback* callback = [self extractCallbackFrom:args];
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        id<ZebraPrinterConnection, NSObject> c;
         
-        PrinterStatus *status;
-        NSError *error = nil;
-
-        if (serialNumber || ip) {
-            if(serialNumber) {
-                // bluetooth!
-                c = [[MfiBtPrinterConnection alloc] initWithSerialNumber:serialNumber];
+        [self connectToPrinter:args withCallback:^(NSError *error, id<ZebraPrinter, NSObject> printer) {
+            if(error) {
+                [self performErrorCallback:callback withError:error];
             } else {
-                // network!
-                c = [[TcpPrinterConnection alloc] initWithAddress:ip andWithPort:port];
-            }
-            
-            BOOL success = [c open];
-            
-            if(!success) {
-                NSLog(@"[INFO] [TiZebraPrint] Could not connect");
-                if(callback){
-                    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-                    [event setValue:NUMBOOL(success) forKey:@"success"];
-                    [event setValue:[NSNumber numberWithInt:-1] forKey:@"code"];
-                    [event setValue:@"Could not connect" forKey:@"message"];
-                    
-                    [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
-                }
-                [c close];
-                [c release];
-                return;
-            }
-            
-            id p = [ZebraPrinterFactory getInstance:c error:&error];
-            
-            if (!error) {
-                status = [printer getCurrentStatus:&error];
-                if (error) {
+                NSError *statusError = nil;
+                PrinterStatus *printerStatus = [printer getCurrentStatus:&statusError];
+                if (statusError) {
                     NSLog(@"[INFO] [TiZebraPrint] couldn't get status");
-                    if(callback){
-                        NSMutableDictionary *event = [NSMutableDictionary dictionary];
-                        [event setValue:NUMBOOL(FALSE) forKey:@"success"];
-                        [event setValue:error.code forKey:@"code"];
-                        [event setValue:error.localizedDescription forKey:@"message"];
-                        
-                        [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
-                    }
-                    [c close];
-                    
-                    return;
-                }
-                
-                NSLog(@"[INFO] [TiZebraPrint] specified printer status %@",status);
-            } else {
-                NSLog(@"[INFO] [TiZebraPrint] couldn't get status");
-                if(callback){
-                    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-                    [event setValue:NUMBOOL(FALSE) forKey:@"success"];
-                    [event setValue:error.code forKey:@"code"];
-                    [event setValue:error.localizedDescription forKey:@"message"];
-                    
-                    [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
-                }
-                [c close];
-                
-                return;
-            }
-            
-            [c close];
-        } else if (self.printer) {
-            status = [self.printer getCurrentStatus:&error];
-            NSLog(@"[INFO] [TiZebraPrint] connected printer status %@",status);
-        } else {
-            NSLog(@"[INFO] [TiZebraPrint] No printer specified");
-            if(callback){
-                NSMutableDictionary *event = [NSMutableDictionary dictionary];
-                [event setValue:NUMBOOL(FALSE) forKey:@"success"];
-                [event setValue:[NSNumber numberWithInt:-1] forKey:@"code"];
-                [event setValue:@"No printer specified." forKey:@"message"];
-                
-                [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
-            }
-            
-            return;
-        }
-        
-        if (error) {
-            NSLog(@"[INFO] [TiZebraPrint] error %@",error);
-            
-            if(callback){
-                NSMutableDictionary *event = [NSMutableDictionary dictionary];
-                [event setValue:NUMBOOL(!error) forKey:@"success"];
-                if (error) {
-                    [event setValue:error.code forKey:@"code"];
-                    [event setValue:error.localizedDescription forKey:@"message"];
-                }
-                [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
-            }
-            
-            return;
-        } else {
-            if(callback){
-                NSMutableDictionary *event = [NSMutableDictionary dictionary];
-                if (status) {
-                    [event setValue:NUMBOOL(YES) forKey:@"success"];
-                    
-                    [event setValue:NUMBOOL(status.isReadyToPrint) forKey:@"isReadyToPrint"];
-                    [event setValue:NUMBOOL(status.isHeadOpen) forKey:@"isHeadOpen"];
-                    [event setValue:NUMBOOL(status.isHeadCold) forKey:@"isHeadCold"];
-                    [event setValue:NUMBOOL(status.isHeadTooHot) forKey:@"isHeadTooHot"];
-                    [event setValue:NUMBOOL(status.isPaperOut) forKey:@"isPaperOut"];
-                    [event setValue:NUMBOOL(status.isRibbonOut) forKey:@"isRibbonOut"];
-                    [event setValue:NUMBOOL(status.isReceiveBufferFull) forKey:@"isReceiveBufferFull"];
-                    [event setValue:NUMBOOL(status.isPaused) forKey:@"isPaused"];
-                    [event setValue:NUMINTEGER(status.labelLengthInDots) forKey:@"labelLengthInDots"];
-                    [event setValue:NUMINTEGER(status.numberOfFormatsInReceiveBuffer) forKey:@"numberOfFormatsInReceiveBuffer"];
-                    [event setValue:NUMINTEGER(status.labelsRemainingInBatch) forKey:@"labelsRemainingInBatch"];
-                    [event setValue:NUMBOOL(status.isPartialFormatInProgress) forKey:@"isPartialFormatInProgress"];
-                    // TODO: Create printMode constants / Return printMode
+                    [self performErrorCallback:callback withError:statusError];
                 } else {
-                    [event setValue:NUMBOOL(NO) forKey:@"success"];
-                    
-                    [event setValue:[NSNumber numberWithInt:-1] forKey:@"code"];
-                    [event setValue:@"Did not get status yet." forKey:@"message"];
+                    NSLog(@"[INFO] [TiZebraPrint] specified printer status %@",printerStatus);
+                    if (printerStatus) {
+                        NSMutableDictionary *status = [NSMutableDictionary dictionary];
+                        [status setValue:NUMBOOL(printerStatus.isReadyToPrint) forKey:@"isReadyToPrint"];
+                        [status setValue:NUMBOOL(printerStatus.isHeadOpen) forKey:@"isHeadOpen"];
+                        [status setValue:NUMBOOL(printerStatus.isHeadCold) forKey:@"isHeadCold"];
+                        [status setValue:NUMBOOL(printerStatus.isHeadTooHot) forKey:@"isHeadTooHot"];
+                        [status setValue:NUMBOOL(printerStatus.isPaperOut) forKey:@"isPaperOut"];
+                        [status setValue:NUMBOOL(printerStatus.isRibbonOut) forKey:@"isRibbonOut"];
+                        [status setValue:NUMBOOL(printerStatus.isReceiveBufferFull) forKey:@"isReceiveBufferFull"];
+                        [status setValue:NUMBOOL(printerStatus.isPaused) forKey:@"isPaused"];
+                        [status setValue:NUMINTEGER(printerStatus.labelLengthInDots) forKey:@"labelLengthInDots"];
+                        [status setValue:NUMINTEGER(printerStatus.numberOfFormatsInReceiveBuffer) forKey:@"numberOfFormatsInReceiveBuffer"];
+                        [status setValue:NUMINTEGER(printerStatus.labelsRemainingInBatch) forKey:@"labelsRemainingInBatch"];
+                        [status setValue:NUMBOOL(printerStatus.isPartialFormatInProgress) forKey:@"isPartialFormatInProgress"];
+                        // TODO: Create printMode constants / Return printMode
+                        [self performSuccessCallback:callback withKey:@"status" andValue:status];
+                    } else {
+                        [self performErrorCallback:callback withCode:[NSNumber numberWithInt:-1] andMessage:@"Did not get status yet."];
+                    }
                 }
-                
-                [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
             }
-        }
+        }];
     });
 }
 
--(id)selectPrinter:(id)args
+-(void)print:(id)args
 {
-    ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
-    // we need either the Bluetooth serial number OR the network IP & Port
-    NSString *serialNumber = [TiUtils stringValue:@"serialNumber" properties:args];
-    
-    NSString *ip = [TiUtils stringValue:@"ip" properties:args];
-    NSInteger port = [TiUtils intValue:@"port" properties:args];
-    
-    // success/error callback
-    KrollCallback* callback = [args objectForKey:@"callback"];
-    
-    NSLog(@"[INFO] [TiZebraPrint] selectPrinter args %@",args);
-    
-    if(self.connection) {
-        NSLog(@"[INFO] [TiZebraPrint] closing connection");
-        [self.connection close];
-    }
-    
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if(serialNumber) {
-            // bluetooth!
-            self.connection = [[MfiBtPrinterConnection alloc] initWithSerialNumber:serialNumber];
-        } else {
-            // network!
-            self.connection = [[TcpPrinterConnection alloc] initWithAddress:ip andWithPort:port];
-        }
-        
-        NSError *error = nil;
-        [self.connection open];
-        self.printer = [ZebraPrinterFactory getInstance:self.connection error:&error];
-        
-        if(callback){
-            NSMutableDictionary *event = [NSMutableDictionary dictionary];
-            if (error) {
-                NSLog(@"[INFO] [TiZebraPrint] printerfactory error %@",error);
-                [event setValue:NUMBOOL(NO) forKey:@"success"];
-                [event setValue:error.code forKey:@"code"];
-                [event setValue:error.localizedDescription forKey:@"message"];
-            } else {
-                [event setValue:NUMBOOL(YES) forKey:@"success"];
-            }
-            [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
-        }
-    });
-}
-
--(id)print:(id)args
-{
-    ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
-    
     NSLog(@"[INFO] [TiZebraPrint] print() args %@",args);
     
-    // success/error callback
-    KrollCallback* callback = [args objectForKey:@"callback"];
+    KrollCallback* callback = [self extractCallbackFrom:args];
     
-    // Images need a height/width to print, along with "isInsideFormat"
-    TiBlob *image = [args objectForKey:@"image"];
-    
-    // PDFs need a page number to print
-    NSString *pdf = [TiUtils stringValue:@"pdf" properties:args def:@""];
-    NSInteger pdfPage = [TiUtils intValue:@"page" properties:args def:0];
-    
-    // everyone needs these properties but it will be rare to override defaults
-    NSInteger x = [TiUtils intValue:@"x" properties:args def:0];
-    NSInteger y = [TiUtils intValue:@"y" properties:args def:0];
-    NSInteger width = [TiUtils intValue:@"width" properties:args def:-1];
-    NSInteger height = [TiUtils intValue:@"height" properties:args def:-1];
-    BOOL isInsideFormat = [TiUtils boolValue:@"isInsideFormat" properties:args def:NO];
-
-    NSError *error = nil;
-    BOOL success = NO;
-    
-    if (pdf) {
-        CFURLRef url = (CFURLRef)CFBridgingRetain([[NSURL alloc] initFileURLWithPath:pdf]);
-        CGPDFDocumentRef thisPDF = CGPDFDocumentCreateWithURL(url);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         
-        if (pdfPage > 0) {
-            size_t pageNum = pdfPage;
-            CGImageRef img = [[self imageFromPDF:thisPDF page:pageNum] CGImage];
-            success = [self printImage:img x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
-        } else {
-            size_t nPages = CGPDFDocumentGetNumberOfPages(thisPDF);
-            size_t pageNum;
-            for (pageNum = 1; pageNum <= nPages; pageNum++) {
-                CGImageRef img = [[self imageFromPDF:thisPDF page:pageNum] CGImage];
-                success = [self printImage:img x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
-                if (!success) {
-                    break;
+        [self connectToPrinter:args withCallback:^(NSError *error, id<ZebraPrinter, NSObject> printer) {
+            if (error) {
+                [self performErrorCallback:callback withError:error];
+            } else {
+                // Images need a height/width to print, along with "isInsideFormat"
+                TiBlob *image = [args objectForKey:@"image"];
+                
+                // PDFs need a page number to print
+                NSString *pdf = [TiUtils stringValue:@"pdf" properties:args def:@""];
+                NSInteger pdfPage = [TiUtils intValue:@"page" properties:args def:0];
+                
+                // everyone needs these properties but it will be rare to override defaults
+                NSInteger x = [TiUtils intValue:@"x" properties:args def:0];
+                NSInteger y = [TiUtils intValue:@"y" properties:args def:0];
+                NSInteger width = [TiUtils intValue:@"width" properties:args def:-1];
+                NSInteger height = [TiUtils intValue:@"height" properties:args def:-1];
+                BOOL isInsideFormat = [TiUtils boolValue:@"isInsideFormat" properties:args def:NO];
+                
+                NSError *error = nil;
+                BOOL success = NO;
+                
+                if (pdf) {
+                    CFURLRef url = (CFURLRef)CFBridgingRetain([[NSURL alloc] initFileURLWithPath:pdf]);
+                    CGPDFDocumentRef thisPDF = CGPDFDocumentCreateWithURL(url);
+                    
+                    if (pdfPage > 0) {
+                        size_t pageNum = pdfPage;
+                        CGImageRef img = [[self imageFromPDF:thisPDF page:pageNum] CGImage];
+                        success = [self printImage:img toPrinter:printer x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
+                    } else {
+                        size_t nPages = CGPDFDocumentGetNumberOfPages(thisPDF);
+                        size_t pageNum;
+                        for (pageNum = 1; pageNum <= nPages; pageNum++) {
+                            CGImageRef img = [[self imageFromPDF:thisPDF page:pageNum] CGImage];
+                            success = [self printImage:img toPrinter:printer x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
+                            if (!success) {
+                                break;
+                            }
+                        }
+                    }
+                    
+                    CGPDFDocumentRelease(thisPDF);
+                    CFRelease(url);
+                } else {
+                    success = [self printImage:[image.image CGImage] toPrinter:printer x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
+                }
+                if(success) {
+                    [self performSuccessCallback:callback];
+                } else {
+                    [self performErrorCallback:callback withCode:[NSNumber numberWithInt:-1] andMessage:@"Printing failed"];
                 }
             }
-        }
-        
-        CGPDFDocumentRelease(thisPDF);
-    } else {
-        success = [self printImage:[image.image CGImage] x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
-    }
-    
-    if(callback){
-        NSMutableDictionary *event = [NSMutableDictionary dictionary];
-        [event setValue:NUMBOOL(success) forKey:@"success"];
-        if (!success) {
-            [event setValue:error.code forKey:@"code"];
-            [event setValue:error.localizedDescription forKey:@"message"];
-        }
-        [callback call:[NSArray arrayWithObjects:event, nil] thisObject:self];
-    }
+        }];
+    });
 }
-
 @end

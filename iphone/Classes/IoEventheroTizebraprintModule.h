@@ -13,8 +13,4 @@
 @interface IoEventheroTizebraprintModule : TiModule
 {
 }
-
-@property (nonatomic, retain) id<ZebraPrinterConnection, NSObject> connection;
-@property (nonatomic, retain) id<ZebraPrinter, NSObject> printer;
-
 @end
