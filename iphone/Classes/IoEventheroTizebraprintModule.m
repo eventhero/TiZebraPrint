@@ -100,7 +100,6 @@
 -(KrollCallback *)extractCallbackFrom:(id)args
 {
     KrollCallback* callback = nil;
-    ENSURE_SINGLE_ARG(args, NSDictionary);
     ENSURE_ARG_FOR_KEY(callback,args,@"callback",KrollCallback)
     return callback;
 }
@@ -108,16 +107,16 @@
 -(void) performErrorCallback:(KrollCallback *)callback withError:(NSError *)error {
     NSMutableDictionary *event = [NSMutableDictionary dictionary];
     [event setValue:NUMBOOL(NO) forKey:@"success"];
-    [event setValue:error.code forKey:@"code"];
+    [event setValue:NUMLONG(error.code) forKey:@"code"];
     [event setValue:error.localizedDescription forKey:@"message"];
     
     [callback call:[NSArray arrayWithObject:event] thisObject:self];
 }
 
--(void) performErrorCallback:(KrollCallback *)callback withCode:(NSNumber *)code andMessage:(NSString *)message {
+-(void) performErrorCallback:(KrollCallback *)callback withCode:(NSInteger)code andMessage:(NSString *)message {
     NSMutableDictionary *event = [NSMutableDictionary dictionary];
     [event setValue:NUMBOOL(NO) forKey:@"success"];
-    [event setValue:code forKey:@"code"];
+    [event setValue:NUMLONG(code) forKey:@"code"];
     [event setValue:message forKey:@"message"];
     
     [callback call:[NSArray arrayWithObject:event] thisObject:self];
@@ -138,41 +137,38 @@
     [callback call:[NSArray arrayWithObject:event] thisObject:self];
 }
 
--(id<ZebraPrinterConnection, NSObject>)connectionFrom:(id)args {
+-(void)openConnection:(id)args withCallback:(void(^)(id<ZebraPrinterConnection,NSObject>))callback {
     // we need either the Bluetooth serial number OR the network IP & Port
     NSString *serialNumber = [TiUtils stringValue:@"serialNumber" properties:args];
     NSString *ip = [TiUtils stringValue:@"ip" properties:args];
     NSInteger port = [TiUtils intValue:@"port" properties:args];
+    NSLog(@"[DEBUG] [TiZebraPrint] Connection params: %@, %@, %d", serialNumber, ip, port);
     
+    id<ZebraPrinterConnection, NSObject> connection = nil;
     if(serialNumber) {
         // bluetooth!
         NSLog(@"[DEBUG] [TiZebraPrint] Connecting to Bluetooth SN:%@", serialNumber);
-        return [[[MfiBtPrinterConnection alloc] initWithSerialNumber:serialNumber] autorelease];
+        connection = [[MfiBtPrinterConnection alloc] initWithSerialNumber:serialNumber];
     } else {
         // network!
-        NSLog(@"[DEBUG] [TiZebraPrint] Connecting to IP:%@:%@", ip, port);
-        return [[[TcpPrinterConnection alloc] initWithAddress:ip andWithPort:port] autorelease];
+        NSLog(@"[DEBUG] [TiZebraPrint] Connecting to IP:%@:%d", ip, port);
+        connection = [[TcpPrinterConnection alloc] initWithAddress:ip andWithPort:port];
     }
-}
-
--(void)openConnection:(id)args withCallback:(void(^)(id<ZebraPrinterConnection,NSObject>))callback {
-    id<ZebraPrinterConnection, NSObject> connection = [self connectionFrom:args];
     NSLog(@"[DEBUG] [TiZebraPrint] opening connection");
     BOOL success = [connection open];
-    NSLog(@"[DEBUG] [TiZebraPrint] opening connection result: %@", success);
+    NSLog(@"[DEBUG] [TiZebraPrint] opening connection result: %d", success);
     callback(connection);
     NSLog(@"[DEBUG] [TiZebraPrint] closing connection");
     [connection close];
-    // connection is autoreleased
+    [connection release];
 }
 
 -(void)connectToPrinter:(id)args withCallback:(void(^)(NSError *, id<ZebraPrinter,NSObject>))callback {
     [self openConnection:args withCallback:^(id<ZebraPrinterConnection, NSObject> connection) {
         NSError *error = nil;
         id<ZebraPrinter, NSObject> printer = [ZebraPrinterFactory getInstance:connection error:&error];
-        if (error || !printer) {
+        if (error) {
             NSLog(@"[ERROR] [TiZebraPrint] printer factory error %@", error);
-            NSLog(@"[ERROR] [TiZebraPrint] Did you set properties in info.plist?");
             callback(error, nil);
         } else {
             callback(nil, printer);
@@ -258,6 +254,7 @@
 
 -(void)findBluetoothPrinters:(id)args
 {
+    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
     KrollCallback* callback = [self extractCallbackFrom:args];
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -276,6 +273,7 @@
 
 -(void)findNetworkPrinters:(id)args
 {
+    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
     KrollCallback* callback = [self extractCallbackFrom:args];
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -306,6 +304,7 @@
 -(void)getPrinterStatus:(id)args
 {
     NSLog(@"[INFO] [TiZebraPrint] getPrinterStatus args %@",args);
+    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
 
     KrollCallback* callback = [self extractCallbackFrom:args];
     
@@ -318,10 +317,10 @@
                 NSError *statusError = nil;
                 PrinterStatus *printerStatus = [printer getCurrentStatus:&statusError];
                 if (statusError) {
-                    NSLog(@"[INFO] [TiZebraPrint] couldn't get status");
+                    NSLog(@"[ERROR] [TiZebraPrint] couldn't get status");
                     [self performErrorCallback:callback withError:statusError];
                 } else {
-                    NSLog(@"[INFO] [TiZebraPrint] specified printer status %@",printerStatus);
+                    NSLog(@"[DEBUG] [TiZebraPrint] specified printer status %@", printerStatus);
                     if (printerStatus) {
                         NSMutableDictionary *status = [NSMutableDictionary dictionary];
                         [status setValue:NUMBOOL(printerStatus.isReadyToPrint) forKey:@"isReadyToPrint"];
@@ -339,7 +338,7 @@
                         // TODO: Create printMode constants / Return printMode
                         [self performSuccessCallback:callback withKey:@"status" andValue:status];
                     } else {
-                        [self performErrorCallback:callback withCode:[NSNumber numberWithInt:-1] andMessage:@"Did not get status yet."];
+                        [self performErrorCallback:callback withCode:-1 andMessage:@"Did not get status yet."];
                     }
                 }
             }
@@ -349,12 +348,13 @@
 
 -(void)print:(id)args
 {
-    NSLog(@"[INFO] [TiZebraPrint] print() args %@",args);
+    NSLog(@"[DEBUG] [TiZebraPrint] print() args %@",args);
+    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
     
     KrollCallback* callback = [self extractCallbackFrom:args];
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        
+
         [self connectToPrinter:args withCallback:^(NSError *error, id<ZebraPrinter, NSObject> printer) {
             if (error) {
                 [self performErrorCallback:callback withError:error];
@@ -404,7 +404,7 @@
                 if(success) {
                     [self performSuccessCallback:callback];
                 } else {
-                    [self performErrorCallback:callback withCode:[NSNumber numberWithInt:-1] andMessage:@"Printing failed"];
+                    [self performErrorCallback:callback withCode:-1 andMessage:@"Printing failed"];
                 }
             }
         }];
