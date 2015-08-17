@@ -21,6 +21,8 @@
 #import "ZebraPrinter.h"
 #import "GraphicsUtil.h"
 
+#include "TiCallback.h"
+
 @implementation IoEventheroTizebraprintModule
 
 #pragma mark Internal
@@ -97,46 +99,6 @@
 }
 
 #pragma private methods
-
--(KrollCallback *)extractCallbackFrom:(id)args
-{
-    KrollCallback* callback = nil;
-    ENSURE_ARG_FOR_KEY(callback,args,@"callback",KrollCallback)
-    return callback;
-}
-
--(void) performErrorCallback:(KrollCallback *)callback withError:(NSError *)error {
-    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-    [event setValue:NUMBOOL(NO) forKey:@"success"];
-    [event setValue:NUMLONG(error.code) forKey:@"code"];
-    [event setValue:error.localizedDescription forKey:@"message"];
-    
-    [callback call:[NSArray arrayWithObject:event] thisObject:self];
-}
-
--(void) performErrorCallback:(KrollCallback *)callback withCode:(NSInteger)code andMessage:(NSString *)message {
-    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-    [event setValue:NUMBOOL(NO) forKey:@"success"];
-    [event setValue:NUMLONG(code) forKey:@"code"];
-    [event setValue:message forKey:@"message"];
-    
-    [callback call:[NSArray arrayWithObject:event] thisObject:self];
-}
-
--(void) performSuccessCallback:(KrollCallback *)callback {
-    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-    [event setValue:NUMBOOL(YES) forKey:@"success"];
-    
-    [callback call:[NSArray arrayWithObject:event] thisObject:self];
-}
-
--(void) performSuccessCallback:(KrollCallback *)callback withKey:(NSString *)key andValue:(id)value {
-    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-    [event setValue:NUMBOOL(YES) forKey:@"success"];
-    [event setObject:value forKey:key];
-    
-    [callback call:[NSArray arrayWithObject:event] thisObject:self];
-}
 
 -(void)openConnection:(id)args withCallback:(void(^)(id<ZebraPrinterConnection,NSObject>))callback {
     // we need either the Bluetooth serial number OR the network IP & Port
@@ -255,8 +217,10 @@
 
 -(void)findBluetoothPrinters:(id)args
 {
-    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
-    KrollCallback* callback = [self extractCallbackFrom:args];
+    ENSURE_ARG_COUNT(args, 1);
+    
+    KrollCallback* callback = nil;
+    ENSURE_ARG_AT_INDEX(callback,args,0,KrollCallback)
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSMutableArray *printers = [NSMutableArray array];
@@ -268,14 +232,16 @@
                 [printers addObject:[NSDictionary dictionaryWithObjectsAndKeys:@"bluetooth",@"kind",accessory.name,@"name",accessory.serialNumber,@"serialNumber", nil]];
             }
         }
-        [self performSuccessCallback:callback withKey:@"printers" andValue:printers];
+        [TiCallback performSuccessCallback:callback withKey:@"printers" andValue:printers];
     });
 }
 
 -(void)findNetworkPrinters:(id)args
 {
-    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
-    KrollCallback* callback = [self extractCallbackFrom:args];
+    ENSURE_ARG_COUNT(args, 1);
+    
+    KrollCallback* callback = nil;
+    ENSURE_ARG_AT_INDEX(callback,args,0,KrollCallback)
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"[INFO] [TiZebraPrint] getting network printers");
@@ -283,7 +249,7 @@
         NSArray *networkPrintersList = [NetworkDiscoverer localBroadcast:&error];
         if (error) {
             NSLog(@"[ERROR] [TiZebraPrint] NetworkDiscoverer ? %@",error);
-            [self performErrorCallback:callback withError:error];
+            [TiCallback performErrorCallback:callback withError:error];
         } else {
             NSMutableArray *printers = [NSMutableArray array];
             for (DiscoveredPrinterNetwork *d in networkPrintersList) {
@@ -297,7 +263,7 @@
                 
                 [printers addObject:thisPrinter];
             }
-            [self performSuccessCallback:callback withKey:@"printers" andValue:printers];
+            [TiCallback performSuccessCallback:callback withKey:@"printers" andValue:printers];
         }
     });
 }
@@ -306,29 +272,34 @@
 -(void)print:(id)args
 {
     NSLog(@"[DEBUG] [TiZebraPrint] print() args %@",args);
-    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
+
+    ENSURE_ARG_COUNT(args, 2);
     
-    KrollCallback* callback = [self extractCallbackFrom:args];
+    NSDictionary *printArg = nil;
+    ENSURE_ARG_AT_INDEX(printArg,args,0,NSDictionary)
+    
+    KrollCallback *callback = nil;
+    ENSURE_ARG_AT_INDEX(callback,args,1,KrollCallback)
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 
-        [self connectToPrinter:args withCallback:^(NSError *error, id<ZebraPrinter, NSObject> printer) {
+        [self connectToPrinter:printArg withCallback:^(NSError *error, id<ZebraPrinter, NSObject> printer) {
             if (error) {
-                [self performErrorCallback:callback withError:error];
+                [TiCallback performErrorCallback:callback withError:error];
             } else {
                 // Images need a height/width to print, along with "isInsideFormat"
-                TiBlob *image = [args objectForKey:@"image"];
+                TiBlob *image = [printArg objectForKey:@"image"];
                 
                 // PDFs need a page number to print
-                NSString *pdf = [TiUtils stringValue:@"pdf" properties:args def:@""];
-                NSInteger pdfPage = [TiUtils intValue:@"page" properties:args def:0];
+                NSString *pdf = [TiUtils stringValue:@"pdf" properties:printArg def:@""];
+                NSInteger pdfPage = [TiUtils intValue:@"page" properties:printArg def:0];
                 
                 // everyone needs these properties but it will be rare to override defaults
-                NSInteger x = [TiUtils intValue:@"x" properties:args def:0];
-                NSInteger y = [TiUtils intValue:@"y" properties:args def:0];
-                NSInteger width = [TiUtils intValue:@"width" properties:args def:-1];
-                NSInteger height = [TiUtils intValue:@"height" properties:args def:-1];
-                BOOL isInsideFormat = [TiUtils boolValue:@"isInsideFormat" properties:args def:NO];
+                NSInteger x = [TiUtils intValue:@"x" properties:printArg def:0];
+                NSInteger y = [TiUtils intValue:@"y" properties:printArg def:0];
+                NSInteger width = [TiUtils intValue:@"width" properties:printArg def:-1];
+                NSInteger height = [TiUtils intValue:@"height" properties:printArg def:-1];
+                BOOL isInsideFormat = [TiUtils boolValue:@"isInsideFormat" properties:printArg def:NO];
                 
                 NSError *error = nil;
                 BOOL success = NO;
@@ -359,9 +330,9 @@
                     success = [self printImage:[image.image CGImage] toPrinter:printer x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
                 }
                 if(success) {
-                    [self performSuccessCallback:callback];
+                    [TiCallback performSuccessCallback:callback];
                 } else {
-                    [self performErrorCallback:callback withCode:-1 andMessage:@"Printing failed"];
+                    [TiCallback performErrorCallback:callback withCode:-1 andMessage:@"Printing failed"];
                 }
             }
         }];

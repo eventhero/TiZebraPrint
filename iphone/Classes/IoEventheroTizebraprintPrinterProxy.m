@@ -13,6 +13,8 @@
 #import "ZebraPrinterFactory.h"
 #import "GraphicsUtil.h"
 
+#include "TiCallback.h"
+
 @implementation IoEventheroTizebraprintPrinterProxy
 
 -(void)_initWithProperties:(NSDictionary *)properties
@@ -37,45 +39,6 @@
 }
 
 #pragma Helper Methods
--(KrollCallback *)extractCallbackFrom:(id)args
-{
-    KrollCallback* callback = nil;
-    ENSURE_ARG_FOR_KEY(callback,args,@"callback",KrollCallback)
-    return callback;
-}
-
--(void) performErrorCallback:(KrollCallback *)callback withError:(NSError *)error {
-    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-    [event setValue:NUMBOOL(NO) forKey:@"success"];
-    [event setValue:NUMLONG(error.code) forKey:@"code"];
-    [event setValue:error.localizedDescription forKey:@"message"];
-    
-    [callback call:[NSArray arrayWithObject:event] thisObject:self];
-}
-
--(void) performErrorCallback:(KrollCallback *)callback withCode:(NSInteger)code andMessage:(NSString *)message {
-    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-    [event setValue:NUMBOOL(NO) forKey:@"success"];
-    [event setValue:NUMLONG(code) forKey:@"code"];
-    [event setValue:message forKey:@"message"];
-    
-    [callback call:[NSArray arrayWithObject:event] thisObject:self];
-}
-
--(void) performSuccessCallback:(KrollCallback *)callback {
-    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-    [event setValue:NUMBOOL(YES) forKey:@"success"];
-    
-    [callback call:[NSArray arrayWithObject:event] thisObject:self];
-}
-
--(void) performSuccessCallback:(KrollCallback *)callback withKey:(NSString *)key andValue:(id)value {
-    NSMutableDictionary *event = [NSMutableDictionary dictionary];
-    [event setValue:NUMBOOL(YES) forKey:@"success"];
-    [event setObject:value forKey:key];
-    
-    [callback call:[NSArray arrayWithObject:event] thisObject:self];
-}
 
 #pragma Public APIs (available in javascript)
 -(void)connect:(id)args
@@ -113,10 +76,10 @@
         id<ZebraPrinter,NSObject> printer = [ZebraPrinterFactory getInstance:_connection error:&error];
         if (error!=nil) {
             NSLog(@"[ERROR] [TiZebraPrint] printer factory error %@", error);
-            [self performErrorCallback:callback withError:error];
+            [TiCallback performErrorCallback:callback withError:error];
         } else {
             _printer = [printer retain];
-            [self performSuccessCallback:callback];
+            [TiCallback performSuccessCallback:callback];
         }
     });
 }
@@ -124,12 +87,13 @@
 -(void)getStatus:(id)args
 {
     NSLog(@"[INFO] [TiZebraPrint] getStatus() args %@",args);
-    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
+    ENSURE_ARG_COUNT(args, 1);
     
-    KrollCallback* callback = [self extractCallbackFrom:args];
+    KrollCallback* callback = nil;
+    ENSURE_ARG_AT_INDEX(callback,args,0,KrollCallback)
     
-    if (!_connection || !_printer) {
-        [self performErrorCallback:callback withCode:-1 andMessage:@"Did you forget to call connect() ?"];
+    if (_connection==nil || _printer==nil) {
+        [TiCallback performErrorCallback:callback withCode:-1 andMessage:@"Did you forget to call connect() ?"];
         return;
     }
     
@@ -138,8 +102,8 @@
         NSError *error = nil;
         PrinterStatus *printerStatus = [_printer getCurrentStatus:&error];
         if (error) {
-            NSLog(@"[ERROR] [TiZebraPrint] couldn't get status");
-            [self performErrorCallback:callback withError:error];
+            NSLog(@"[ERROR] [TiZebraPrint] Error getting printer status %@", error);
+            [TiCallback performErrorCallback:callback withError:error];
         } else {
             NSLog(@"[DEBUG] [TiZebraPrint] specified printer status %@", printerStatus);
             if (printerStatus) {
@@ -157,9 +121,9 @@
                 [status setValue:NUMINTEGER(printerStatus.labelsRemainingInBatch) forKey:@"labelsRemainingInBatch"];
                 [status setValue:NUMBOOL(printerStatus.isPartialFormatInProgress) forKey:@"isPartialFormatInProgress"];
                 // TODO: Create printMode constants / Return printMode
-                [self performSuccessCallback:callback withKey:@"status" andValue:status];
+                [TiCallback performSuccessCallback:callback withKey:@"status" andValue:status];
             } else {
-                [self performErrorCallback:callback withCode:-1 andMessage:@"Did not get status yet."];
+                [TiCallback performErrorCallback:callback withCode:-1 andMessage:@"Did not get status yet."];
             }
         }
     });

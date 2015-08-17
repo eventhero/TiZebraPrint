@@ -28,6 +28,8 @@
 		24DE9E1211C5FE74003F90F6 /* IoEventheroTizebraprintModuleAssets.m in Sources */ = {isa = PBXBuildFile; fileRef = 24DE9E1011C5FE74003F90F6 /* IoEventheroTizebraprintModuleAssets.m */; };
 		72F5718B1B818DD2002C0DFD /* IoEventheroTizebraprintPrinterProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 72F5718A1B818DD2002C0DFD /* IoEventheroTizebraprintPrinterProxy.h */; };
 		72F5718D1B818E0F002C0DFD /* IoEventheroTizebraprintPrinterProxy.m in Sources */ = {isa = PBXBuildFile; fileRef = 72F5718C1B818E0F002C0DFD /* IoEventheroTizebraprintPrinterProxy.m */; };
+		72F5718F1B81BCD6002C0DFD /* TiCallback.h in Headers */ = {isa = PBXBuildFile; fileRef = 72F5718E1B81BCD6002C0DFD /* TiCallback.h */; };
+		72F571911B81BD5F002C0DFD /* TiCallback.m in Sources */ = {isa = PBXBuildFile; fileRef = 72F571901B81BD5F002C0DFD /* TiCallback.m */; };
 		74D8189C1B1A6F1F00579426 /* libZSDK_API.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 74D8189B1B1A6F1F00579426 /* libZSDK_API.a */; };
 		74D818B41B1A701C00579426 /* FormatUtil.h in Headers */ = {isa = PBXBuildFile; fileRef = 74D818A01B1A701C00579426 /* FormatUtil.h */; };
 		74D818B51B1A701C00579426 /* GraphicsUtil.h in Headers */ = {isa = PBXBuildFile; fileRef = 74D818A11B1A701C00579426 /* GraphicsUtil.h */; };
@@ -72,6 +74,8 @@
 		24DE9E1011C5FE74003F90F6 /* IoEventheroTizebraprintModuleAssets.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = IoEventheroTizebraprintModuleAssets.m; path = Classes/IoEventheroTizebraprintModuleAssets.m; sourceTree = "<group>"; };
 		72F5718A1B818DD2002C0DFD /* IoEventheroTizebraprintPrinterProxy.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IoEventheroTizebraprintPrinterProxy.h; path = Classes/IoEventheroTizebraprintPrinterProxy.h; sourceTree = "<group>"; };
 		72F5718C1B818E0F002C0DFD /* IoEventheroTizebraprintPrinterProxy.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = IoEventheroTizebraprintPrinterProxy.m; path = Classes/IoEventheroTizebraprintPrinterProxy.m; sourceTree = "<group>"; };
+		72F5718E1B81BCD6002C0DFD /* TiCallback.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TiCallback.h; path = Classes/TiCallback.h; sourceTree = "<group>"; };
+		72F571901B81BD5F002C0DFD /* TiCallback.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = TiCallback.m; path = Classes/TiCallback.m; sourceTree = "<group>"; };
 		74D8189B1B1A6F1F00579426 /* libZSDK_API.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libZSDK_API.a; path = lib/libZSDK_API.a; sourceTree = "<group>"; };
 		74D818A01B1A701C00579426 /* FormatUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = FormatUtil.h; path = lib/include/FormatUtil.h; sourceTree = "<group>"; };
 		74D818A11B1A701C00579426 /* GraphicsUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = GraphicsUtil.h; path = lib/include/GraphicsUtil.h; sourceTree = "<group>"; };
@@ -151,6 +155,8 @@
 				24DD6CF81134B3F500162E58 /* IoEventheroTizebraprintModule.m */,
 				72F5718A1B818DD2002C0DFD /* IoEventheroTizebraprintPrinterProxy.h */,
 				72F5718C1B818E0F002C0DFD /* IoEventheroTizebraprintPrinterProxy.m */,
+				72F5718E1B81BCD6002C0DFD /* TiCallback.h */,
+				72F571901B81BD5F002C0DFD /* TiCallback.m */,
 			);
 			name = Classes;
 			sourceTree = "<group>";
@@ -197,6 +203,7 @@
 				74D818B51B1A701C00579426 /* GraphicsUtil.h in Headers */,
 				74D818BE1B1A701C00579426 /* ToolsUtil.h in Headers */,
 				74D818BD1B1A701C00579426 /* TcpPrinterConnection.h in Headers */,
+				72F5718F1B81BCD6002C0DFD /* TiCallback.h in Headers */,
 				74D818BA1B1A701C00579426 /* PrinterStatusMessages.h in Headers */,
 				74D818B41B1A701C00579426 /* FormatUtil.h in Headers */,
 				74D818C61B1A701D00579426 /* FieldDescriptionData.h in Headers */,
@@ -289,6 +296,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				24DD6CFA1134B3F500162E58 /* IoEventheroTizebraprintModule.m in Sources */,
+				72F571911B81BD5F002C0DFD /* TiCallback.m in Sources */,
 				72F5718D1B818E0F002C0DFD /* IoEventheroTizebraprintPrinterProxy.m in Sources */,
 				24DE9E1211C5FE74003F90F6 /* IoEventheroTizebraprintModuleAssets.m in Sources */,
 			);
