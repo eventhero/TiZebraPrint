@@ -15,10 +15,11 @@
 #import "DiscoveredPrinterNetwork.h"
 
 #import "ZebraPrinterConnection.h"
-#import "TcpPrinterConnection.h"
-#import "GraphicsUtil.h"
-#import "ZebraPrinterFactory.h"
 #import "MfiBtPrinterConnection.h"
+#import "TcpPrinterConnection.h"
+#import "ZebraPrinterFactory.h"
+#import "ZebraPrinter.h"
+#import "GraphicsUtil.h"
 
 @implementation IoEventheroTizebraprintModule
 
@@ -301,50 +302,6 @@
     });
 }
 
--(void)getPrinterStatus:(id)args
-{
-    NSLog(@"[INFO] [TiZebraPrint] getPrinterStatus args %@",args);
-    ENSURE_SINGLE_ARG(args, NSDictionary); // WARNING! args now is NSDIctionary, not NSArray
-
-    KrollCallback* callback = [self extractCallbackFrom:args];
-    
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        
-        [self connectToPrinter:args withCallback:^(NSError *error, id<ZebraPrinter, NSObject> printer) {
-            if(error) {
-                [self performErrorCallback:callback withError:error];
-            } else {
-                NSError *statusError = nil;
-                PrinterStatus *printerStatus = [printer getCurrentStatus:&statusError];
-                if (statusError) {
-                    NSLog(@"[ERROR] [TiZebraPrint] couldn't get status");
-                    [self performErrorCallback:callback withError:statusError];
-                } else {
-                    NSLog(@"[DEBUG] [TiZebraPrint] specified printer status %@", printerStatus);
-                    if (printerStatus) {
-                        NSMutableDictionary *status = [NSMutableDictionary dictionary];
-                        [status setValue:NUMBOOL(printerStatus.isReadyToPrint) forKey:@"isReadyToPrint"];
-                        [status setValue:NUMBOOL(printerStatus.isHeadOpen) forKey:@"isHeadOpen"];
-                        [status setValue:NUMBOOL(printerStatus.isHeadCold) forKey:@"isHeadCold"];
-                        [status setValue:NUMBOOL(printerStatus.isHeadTooHot) forKey:@"isHeadTooHot"];
-                        [status setValue:NUMBOOL(printerStatus.isPaperOut) forKey:@"isPaperOut"];
-                        [status setValue:NUMBOOL(printerStatus.isRibbonOut) forKey:@"isRibbonOut"];
-                        [status setValue:NUMBOOL(printerStatus.isReceiveBufferFull) forKey:@"isReceiveBufferFull"];
-                        [status setValue:NUMBOOL(printerStatus.isPaused) forKey:@"isPaused"];
-                        [status setValue:NUMINTEGER(printerStatus.labelLengthInDots) forKey:@"labelLengthInDots"];
-                        [status setValue:NUMINTEGER(printerStatus.numberOfFormatsInReceiveBuffer) forKey:@"numberOfFormatsInReceiveBuffer"];
-                        [status setValue:NUMINTEGER(printerStatus.labelsRemainingInBatch) forKey:@"labelsRemainingInBatch"];
-                        [status setValue:NUMBOOL(printerStatus.isPartialFormatInProgress) forKey:@"isPartialFormatInProgress"];
-                        // TODO: Create printMode constants / Return printMode
-                        [self performSuccessCallback:callback withKey:@"status" andValue:status];
-                    } else {
-                        [self performErrorCallback:callback withCode:-1 andMessage:@"Did not get status yet."];
-                    }
-                }
-            }
-        }];
-    });
-}
 
 -(void)print:(id)args
 {

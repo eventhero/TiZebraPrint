@@ -7,9 +7,6 @@
 
 #import "TiModule.h"
 
-#import "ZebraPrinter.h"
-#import "ZebraPrinterConnection.h"
-
 @interface IoEventheroTizebraprintModule : TiModule
 {
 }
