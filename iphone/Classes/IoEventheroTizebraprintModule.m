@@ -30,41 +30,41 @@
 // this is generated for your module, please do not change it
 -(id)moduleGUID
 {
-	return @"7155b8a5-4855-4f19-81a7-2a7c803957a8";
+    return @"7155b8a5-4855-4f19-81a7-2a7c803957a8";
 }
 
 // this is generated for your module, please do not change it
 -(NSString*)moduleId
 {
-	return @"io.eventhero.tizebraprint";
+    return @"io.eventhero.tizebraprint";
 }
 
 #pragma mark Lifecycle
 
 -(void)startup
 {
-	// this method is called when the module is first loaded
-	// you *must* call the superclass
-	[super startup];
+    // this method is called when the module is first loaded
+    // you *must* call the superclass
+    [super startup];
     
-	NSLog(@"[INFO] %@ loaded",self);
+    NSLog(@"[INFO] %@ loaded",self);
 }
 
 -(void)shutdown:(id)sender
 {
-	// this method is called when the module is being unloaded
-	// typically this is during shutdown. make sure you don't do too
-	// much processing here or the app will be quit forceably
-
-	// you *must* call the superclass
-	[super shutdown:sender];
+    // this method is called when the module is being unloaded
+    // typically this is during shutdown. make sure you don't do too
+    // much processing here or the app will be quit forceably
+    
+    // you *must* call the superclass
+    [super shutdown:sender];
 }
 
 #pragma mark Cleanup
 
 -(void)dealloc
 {
-	// release any resources that have been retained by the module
+    // release any resources that have been retained by the module
     [super dealloc];
 }
 
@@ -72,87 +72,43 @@
 
 -(void)didReceiveMemoryWarning:(NSNotification*)notification
 {
-	// optionally release any resources that can be dynamically
-	// reloaded once memory is available - such as caches
-	[super didReceiveMemoryWarning:notification];
+    // optionally release any resources that can be dynamically
+    // reloaded once memory is available - such as caches
+    [super didReceiveMemoryWarning:notification];
 }
 
 #pragma mark Listener Notifications
 
 -(void)_listenerAdded:(NSString *)type count:(int)count
 {
-	if (count == 1 && [type isEqualToString:@"my_event"])
-	{
-		// the first (of potentially many) listener is being added
-		// for event named 'my_event'
-	}
+    if (count == 1 && [type isEqualToString:@"my_event"])
+    {
+        // the first (of potentially many) listener is being added
+        // for event named 'my_event'
+    }
 }
 
 -(void)_listenerRemoved:(NSString *)type count:(int)count
 {
-	if (count == 0 && [type isEqualToString:@"my_event"])
-	{
-		// the last listener called for event named 'my_event' has
-		// been removed, we can optionally clean up any resources
-		// since no body is listening at this point for that event
-	}
+    if (count == 0 && [type isEqualToString:@"my_event"])
+    {
+        // the last listener called for event named 'my_event' has
+        // been removed, we can optionally clean up any resources
+        // since no body is listening at this point for that event
+    }
 }
 
 #pragma private methods
 
--(void)openConnection:(id)args withCallback:(void(^)(id<ZebraPrinterConnection,NSObject>))callback {
-    // we need either the Bluetooth serial number OR the network IP & Port
-    NSString *serialNumber = [TiUtils stringValue:@"serialNumber" properties:args];
-    NSString *ip = [TiUtils stringValue:@"ip" properties:args];
-    NSInteger port = [TiUtils intValue:@"port" properties:args];
-    NSLog(@"[DEBUG] [TiZebraPrint] Connection params: %@, %@, %d", serialNumber, ip, port);
+-(UIImage *)imageFromPDF:(CGPDFDocumentRef)pdf page:(size_t)pageNumber width:(CGFloat)width height:(CGFloat)height {
+    // Drawing an image of this size
+    CGRect rect = CGRectMake(0, 0, width, height);
     
-    id<ZebraPrinterConnection, NSObject> connection = nil;
-    if(serialNumber) {
-        // bluetooth!
-        NSLog(@"[DEBUG] [TiZebraPrint] Connecting to Bluetooth SN:%@", serialNumber);
-        connection = [[MfiBtPrinterConnection alloc] initWithSerialNumber:serialNumber];
-    } else {
-        // network!
-        NSLog(@"[DEBUG] [TiZebraPrint] Connecting to IP:%@:%d", ip, port);
-        connection = [[TcpPrinterConnection alloc] initWithAddress:ip andWithPort:port];
-    }
-    NSLog(@"[DEBUG] [TiZebraPrint] opening connection");
-    BOOL success = [connection open];
-    NSLog(@"[DEBUG] [TiZebraPrint] opening connection result: %d", success);
-    callback(connection);
-    NSLog(@"[DEBUG] [TiZebraPrint] closing connection");
-    [connection close];
-    [connection release];
-}
-
--(void)connectToPrinter:(id)args withCallback:(void(^)(NSError *, id<ZebraPrinter,NSObject>))callback {
-    [self openConnection:args withCallback:^(id<ZebraPrinterConnection, NSObject> connection) {
-        NSError *error = nil;
-        id<ZebraPrinter, NSObject> printer = [ZebraPrinterFactory getInstance:connection error:&error];
-        if (error) {
-            NSLog(@"[ERROR] [TiZebraPrint] printer factory error %@", error);
-            callback(error, nil);
-        } else {
-            callback(nil, printer);
-        }
-    }];
-}
-
-
--(UIImage *)imageFromPDF:(CGPDFDocumentRef)pdf
-                    page:(NSUInteger)pageNumber {
-    
-    CGPDFPageRef page = CGPDFDocumentGetPage(pdf, pageNumber);
-    
-    CGRect rect = CGPDFPageGetBoxRect(page, kCGPDFArtBox);
-    
-    UIImage *resultingImage = nil;
-    
+    // Start image drawing context
     UIGraphicsBeginImageContext(rect.size);
-    
     CGContextRef context = UIGraphicsGetCurrentContext();
     
+    // Fill context with white color
     CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
     const CGFloat fillColors[] = {1, 1, 1, 1};
     
@@ -162,13 +118,17 @@
     CGColorSpaceRelease(rgb);
     CGColorRelease(colorRef);
     
-    CGContextTranslateCTM(context, 0.0, rect.size.height);
+    //    This two transforms flip the image upside down
+    //    CGContextTranslateCTM(context, 0.0, rect.size.height);
+    //    CGContextScaleCTM(context, 1.0, -1.0);
     
-    CGContextScaleCTM(context, 1.0, -1.0);
+    UIImage *resultingImage = nil;
     
+    CGPDFPageRef page = CGPDFDocumentGetPage(pdf, pageNumber);
     if (page != NULL) {
         CGContextSaveGState(context);
         
+        // Create transform mapping PDF rect to drawing rect, no rotation, preserving aspect ratio
         CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFCropBox, rect, 0, true);
         
         CGContextConcatCTM(context, pdfTransform);
@@ -177,54 +137,67 @@
         
         CGContextRestoreGState(context);
         
-        resultingImage = UIGraphicsGetImageFromCurrentImageContext();
+        resultingImage = UIGraphicsGetImageFromCurrentImageContext(); // returns autoreleased object
     }
-    
+    // End image drawing context
     UIGraphicsEndImageContext();
     
     return resultingImage;
 }
 
--(id)printImage:(CGImageRef)image
-      toPrinter:(id<ZebraPrinter, NSObject>)printer
-              x:(NSInteger)x
-              y:(NSInteger)y
-         height:(NSInteger)height
-          width:(NSInteger)width
- isInsideFormat:(BOOL)isInsideFormat
-          error:(NSError**)error {
-
-    if(printer != nil) {
-        NSLog(@"[INFO] [TiZebraPrint] printer instance created");
-        id<GraphicsUtil, NSObject> graphicsUtil = [printer getGraphicsUtil];
-        
-        BOOL success = [graphicsUtil printImage:image atX:x atY:y withWidth:width withHeight:height andIsInsideFormat:isInsideFormat error:error];
-        
-        if (!success) {
-            NSLog(@"[INFO] [TiZebraPrint] print failed %@",error);
-            return NO;
-        } else {
-            NSLog(@"[INFO] [TiZebraPrint] print success");
-            return YES;
-        }
-    } else {
-        NSLog(@"[INFO] [TiZebraPrint] Could not detect printer language. Did you set properties in info.plist?");
-        return NO;
-    }
-}
-
 #pragma Public APIs
+
+// Rendering PDF to images has little to do with printing and can be reused with multiple printer drivers.
+// This method needs to be pulled out into a separate shared module
+-(void)renderPdf:(id)args
+{
+    NSLog(@"[DEBUG] [TiZebraPrint] renderPdf() args %@",args);
+    
+    ENSURE_ARG_COUNT(args, 2);
+    
+    NSDictionary *printArg = nil;
+    ENSURE_ARG_AT_INDEX(printArg, args, 0, NSDictionary)
+    
+    // PDFs need a page number to print
+    NSString *pdf = [TiUtils stringValue:@"pdf" properties:printArg def:@""];
+    CGFloat width = [TiUtils floatValue:@"width" properties:printArg def:-1];
+    CGFloat height = [TiUtils floatValue:@"height" properties:printArg def:-1];
+    
+    KrollCallback *callback = nil;
+    ENSURE_ARG_AT_INDEX(callback, args, 1, KrollCallback)
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        
+        NSMutableArray *images = [NSMutableArray array];
+        
+        CFURLRef url = (__bridge CFURLRef)[NSURL fileURLWithPath:pdf];
+        CGPDFDocumentRef thisPDF = CGPDFDocumentCreateWithURL(url);
+        if(thisPDF) {
+            size_t nPages = CGPDFDocumentGetNumberOfPages(thisPDF);
+            for (size_t pageNum = 1; pageNum <= nPages; pageNum++) {
+                UIImage *image = [self imageFromPDF:thisPDF page:pageNum width:width height:height];
+                if(image) {
+                    [images addObject:[[[TiBlob alloc] initWithImage:image] autorelease]];
+                }
+            }
+        }
+        
+        CGPDFDocumentRelease(thisPDF); // works even when thisPDF is NULL
+        
+        [TiCallback performSuccessCallback:callback withKey:@"images" andValue:images];
+    });
+}
 
 -(void)findBluetoothPrinters:(id)args
 {
     ENSURE_ARG_COUNT(args, 1);
     
     KrollCallback* callback = nil;
-    ENSURE_ARG_AT_INDEX(callback,args,0,KrollCallback)
+    ENSURE_ARG_AT_INDEX(callback, args, 0, KrollCallback)
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSMutableArray *printers = [NSMutableArray array];
-
+        
         NSLog(@"[INFO] [TiZebraPrint] getting bluetooth printers");
         NSArray *accessories = [[EAAccessoryManager sharedAccessoryManager] connectedAccessories];
         for (EAAccessory *accessory in accessories) {
@@ -241,8 +214,8 @@
     ENSURE_ARG_COUNT(args, 1);
     
     KrollCallback* callback = nil;
-    ENSURE_ARG_AT_INDEX(callback,args,0,KrollCallback)
-
+    ENSURE_ARG_AT_INDEX(callback, args, 0, KrollCallback)
+    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSLog(@"[INFO] [TiZebraPrint] getting network printers");
         NSError *error = nil;
@@ -265,77 +238,6 @@
             }
             [TiCallback performSuccessCallback:callback withKey:@"printers" andValue:printers];
         }
-    });
-}
-
-
--(void)print:(id)args
-{
-    NSLog(@"[DEBUG] [TiZebraPrint] print() args %@",args);
-
-    ENSURE_ARG_COUNT(args, 2);
-    
-    NSDictionary *printArg = nil;
-    ENSURE_ARG_AT_INDEX(printArg,args,0,NSDictionary)
-    
-    KrollCallback *callback = nil;
-    ENSURE_ARG_AT_INDEX(callback,args,1,KrollCallback)
-    
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-
-        [self connectToPrinter:printArg withCallback:^(NSError *error, id<ZebraPrinter, NSObject> printer) {
-            if (error) {
-                [TiCallback performErrorCallback:callback withError:error];
-            } else {
-                // Images need a height/width to print, along with "isInsideFormat"
-                TiBlob *image = [printArg objectForKey:@"image"];
-                
-                // PDFs need a page number to print
-                NSString *pdf = [TiUtils stringValue:@"pdf" properties:printArg def:@""];
-                NSInteger pdfPage = [TiUtils intValue:@"page" properties:printArg def:0];
-                
-                // everyone needs these properties but it will be rare to override defaults
-                NSInteger x = [TiUtils intValue:@"x" properties:printArg def:0];
-                NSInteger y = [TiUtils intValue:@"y" properties:printArg def:0];
-                NSInteger width = [TiUtils intValue:@"width" properties:printArg def:-1];
-                NSInteger height = [TiUtils intValue:@"height" properties:printArg def:-1];
-                BOOL isInsideFormat = [TiUtils boolValue:@"isInsideFormat" properties:printArg def:NO];
-                
-                NSError *error = nil;
-                BOOL success = NO;
-                
-                if (pdf) {
-                    CFURLRef url = (CFURLRef)CFBridgingRetain([[NSURL alloc] initFileURLWithPath:pdf]);
-                    CGPDFDocumentRef thisPDF = CGPDFDocumentCreateWithURL(url);
-                    
-                    if (pdfPage > 0) {
-                        size_t pageNum = pdfPage;
-                        CGImageRef img = [[self imageFromPDF:thisPDF page:pageNum] CGImage];
-                        success = [self printImage:img toPrinter:printer x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
-                    } else {
-                        size_t nPages = CGPDFDocumentGetNumberOfPages(thisPDF);
-                        size_t pageNum;
-                        for (pageNum = 1; pageNum <= nPages; pageNum++) {
-                            CGImageRef img = [[self imageFromPDF:thisPDF page:pageNum] CGImage];
-                            success = [self printImage:img toPrinter:printer x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
-                            if (!success) {
-                                break;
-                            }
-                        }
-                    }
-                    
-                    CGPDFDocumentRelease(thisPDF);
-                    CFRelease(url);
-                } else {
-                    success = [self printImage:[image.image CGImage] toPrinter:printer x:x y:y height:height width:width isInsideFormat:isInsideFormat error:&error];
-                }
-                if(success) {
-                    [TiCallback performSuccessCallback:callback];
-                } else {
-                    [TiCallback performErrorCallback:callback withCode:-1 andMessage:@"Printing failed"];
-                }
-            }
-        }];
     });
 }
 @end

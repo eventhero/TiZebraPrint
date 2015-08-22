@@ -1,4 +1,4 @@
-#import "TiModule.h"
+#import "TiProxy.h"
 #import "ZebraPrinterConnection.h"
 #import "ZebraPrinter.h"
 

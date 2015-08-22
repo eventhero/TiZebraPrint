@@ -48,10 +48,10 @@
     ENSURE_ARG_COUNT(args, 2);
     
     NSDictionary *connectArg = nil;
-    ENSURE_ARG_AT_INDEX(connectArg,args,0,NSDictionary)
+    ENSURE_ARG_AT_INDEX(connectArg, args, 0, NSDictionary)
     
     KrollCallback* callback = nil;
-    ENSURE_ARG_AT_INDEX(callback,args,1,KrollCallback)
+    ENSURE_ARG_AT_INDEX(callback, args, 1, KrollCallback)
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSString *serialNumber = [TiUtils stringValue:@"serialNumber" properties:connectArg];
@@ -125,6 +125,47 @@
             } else {
                 [TiCallback performErrorCallback:callback withCode:-1 andMessage:@"Did not get status yet."];
             }
+        }
+    });
+}
+
+-(void)print:(id)args
+{
+    NSLog(@"[DEBUG] [TiZebraPrint] print() args %@",args);
+    
+    ENSURE_ARG_COUNT(args, 2);
+    
+    NSDictionary *printArg = nil;
+    ENSURE_ARG_AT_INDEX(printArg, args, 0, NSDictionary)
+    
+    KrollCallback *callback = nil;
+    ENSURE_ARG_AT_INDEX(callback, args, 1, KrollCallback)
+    
+    // Images need a height/width to print
+    TiBlob *image = [printArg objectForKey:@"image"];
+    // everyone needs these properties but it will be rare to override defaults
+    NSInteger x = [TiUtils intValue:@"x" properties:printArg def:0];
+    NSInteger y = [TiUtils intValue:@"y" properties:printArg def:0];
+    
+    if (_connection==nil || _printer==nil) {
+        [TiCallback performErrorCallback:callback withCode:-1 andMessage:@"Did you forget to call connect() ?"];
+        return;
+    }
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        
+        NSError *error = nil;
+        
+        id<GraphicsUtil, NSObject> graphicsUtil = [_printer getGraphicsUtil];
+        
+        BOOL success = [graphicsUtil printImage:[image.image CGImage] atX:x atY:y
+                                      withWidth:image.width withHeight:image.height
+                              andIsInsideFormat:NO error:&error];
+        
+        if(success) {
+            [TiCallback performSuccessCallback:callback];
+        } else {
+            [TiCallback performErrorCallback:callback withError:error];
         }
     });
 }
