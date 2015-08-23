@@ -163,6 +163,12 @@
     CGFloat width = [TiUtils floatValue:@"width" properties:printArg def:-1];
     CGFloat height = [TiUtils floatValue:@"height" properties:printArg def:-1];
     
+    //    NSURL* url = [TiUtils toURL:[args objectForKey:@"url"] proxy:self];
+    //    if (url==nil) {
+    //        NSLog(@"[ERROR] Print called without passing in a url property!");
+    //        return;
+    //    }
+
     KrollCallback *callback = nil;
     ENSURE_ARG_AT_INDEX(callback, args, 1, KrollCallback)
     
