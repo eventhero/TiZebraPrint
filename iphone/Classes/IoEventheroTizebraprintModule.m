@@ -123,29 +123,34 @@
         // PDF units are PDF points (72 points per inch), image units are pixels, need to scale pdf page
         CGFloat pdfScale = imageRect.size.width / pageRect.size.width;
         NSLog(@"[DEBUG] [TiZebraPrint] pdfScale = %f", pdfScale);
-        // CGContextScaleCTM(context, pdfScale, pdfScale);
+        CGFloat xScale = imageRect.size.width / pageRect.size.width;
+        CGFloat yScale = imageRect.size.height / pageRect.size.height;
+        CGFloat scaleToApply = xScale < yScale ? xScale : yScale;
+        
+        CGRect captureRect = CGRectMake(0, 0, imageRect.size.width/scaleToApply, imageRect.size.height/scaleToApply);
 
         // Start image drawing context
-        UIGraphicsBeginImageContextWithOptions(pageRect.size, YES, pdfScale);
+        UIGraphicsBeginImageContextWithOptions(imageRect.size, YES, 1.0);
         
         CGContextRef context = UIGraphicsGetCurrentContext();
         
         // Fill context with white color
         CGContextSetRGBFillColor(context, 1.0, 1.0, 1.0, 1.0);
-        CGContextFillRect(context, pageRect);
+        CGContextFillRect(context, imageRect);
 
         CGContextSaveGState(context);
         
         // This two transforms flip the image upside down
-        CGContextTranslateCTM(context, 0.0, pageRect.size.height);
-        CGContextScaleCTM(context, 1.0, -1.0);
+        CGContextTranslateCTM(context, 0.0, imageRect.size.height);
+        //CGContextScaleCTM(context, 1.0, -1.0);
+        CGContextScaleCTM(context, scaleToApply, -scaleToApply);
         
         int rotateAngle = 0;
         if (rotate) {
             rotateAngle = 180;
         }
         // Create transform mapping PDF rect to drawing rect, no rotation, preserving aspect ratio
-        CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox, pageRect, rotateAngle, true);
+        CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox, captureRect, rotateAngle, true);
         CGContextConcatCTM(context, pdfTransform);
         
         CGContextDrawPDFPage(context, page);
