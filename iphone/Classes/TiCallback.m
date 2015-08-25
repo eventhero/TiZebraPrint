@@ -1,9 +1,6 @@
 #include "TiCallback.h"
 
 @implementation TiCallback
-+(KrollCallback *)extractCallbackFrom:(id)args
-{
-}
 
 +(void) performErrorCallback:(KrollCallback *)callback withError:(NSError *)error {
     NSMutableDictionary *event = [NSMutableDictionary dictionary];
