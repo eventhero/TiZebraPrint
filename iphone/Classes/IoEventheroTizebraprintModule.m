@@ -100,52 +100,63 @@
 
 #pragma private methods
 
--(UIImage *)imageFromPDF:(CGPDFDocumentRef)pdf page:(size_t)pageNumber width:(CGFloat)width height:(CGFloat)height {
+-(UIImage *)renderPdfPage:(CGPDFDocumentRef)pdf
+               pageNumber:(size_t)pageNumber
+                    width:(CGFloat)width
+                   height:(CGFloat)height
+                   rotate:(BOOL)rotate
+{
     // Drawing an image of this size
     CGRect imageRect = CGRectMake(0, 0, width, height);
     NSLog(@"[DEBUG] [TiZebraPrint] CGRectMake(0, 0, width, height) = [%f, %f, %f, %f]",
           imageRect.origin.x, imageRect.origin.y, imageRect.size.width, imageRect.size.height);
     
-    // Start image drawing context
-    UIGraphicsBeginImageContext(imageRect.size);
-    CGContextRef context = UIGraphicsGetCurrentContext();
-    
-    // Fill context with white color
-    CGContextSetRGBFillColor(context, 1.0, 1.0, 1.0, 1.0);
-    CGContextFillRect(context, imageRect);
-    
     UIImage *resultingImage = nil;
     
     CGPDFPageRef page = CGPDFDocumentGetPage(pdf, pageNumber);
     if (page != NULL) {
-        CGContextSaveGState(context);
-        
-        // kCGPDFMediaBox is the max rect usually equal to the printed page size
+        // kCGPDFMediaBox is the max rect usually equal to the printed page size, in PDF points
         CGRect pageRect = CGPDFPageGetBoxRect(page, kCGPDFMediaBox);
         NSLog(@"[DEBUG] [TiZebraPrint] CGPDFPageGetBoxRect(page, kCGPDFMediaBox) = [%f, %f, %f, %f]",
               pageRect.origin.x, pageRect.origin.y, pageRect.size.width, pageRect.size.height);
-        
-        // This two transforms flip the image upside down
-        CGContextTranslateCTM(context, 0.0, imageRect.size.height);
-        CGContextScaleCTM(context, 1.0, -1.0);
-        
-        // Create transform mapping PDF rect to drawing rect, no rotation, preserving aspect ratio
-        // CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox, imageRect, 0, true);
-        // CGContextConcatCTM(context, pdfTransform);
-        
+
+        // PDF units are PDF points (72 points per inch), image units are pixels, need to scale pdf page
         CGFloat pdfScale = imageRect.size.width / pageRect.size.width;
         NSLog(@"[DEBUG] [TiZebraPrint] pdfScale = %f", pdfScale);
-        // PDF units are PDF points (72 points per inch), image units are pixels, need to scale pdf page
-        CGContextScaleCTM(context, pdfScale, pdfScale);
+        // CGContextScaleCTM(context, pdfScale, pdfScale);
+
+        // Start image drawing context
+        UIGraphicsBeginImageContextWithOptions(pageRect.size, YES, pdfScale);
+        
+        CGContextRef context = UIGraphicsGetCurrentContext();
+        
+        // Fill context with white color
+        CGContextSetRGBFillColor(context, 1.0, 1.0, 1.0, 1.0);
+        CGContextFillRect(context, pageRect);
+
+        CGContextSaveGState(context);
+        
+        // This two transforms flip the image upside down
+        CGContextTranslateCTM(context, 0.0, pageRect.size.height);
+        CGContextScaleCTM(context, 1.0, -1.0);
+        
+        int rotateAngle = 0;
+        if (rotate) {
+            rotateAngle = 180;
+        }
+        // Create transform mapping PDF rect to drawing rect, no rotation, preserving aspect ratio
+        CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox, pageRect, rotateAngle, true);
+        CGContextConcatCTM(context, pdfTransform);
         
         CGContextDrawPDFPage(context, page);
         
         CGContextRestoreGState(context);
         
         resultingImage = UIGraphicsGetImageFromCurrentImageContext(); // returns autoreleased object
+
+        // End image drawing context
+        UIGraphicsEndImageContext();
     }
-    // End image drawing context
-    UIGraphicsEndImageContext();
     
     return resultingImage;
 }
@@ -163,10 +174,10 @@
     NSDictionary *printArg = nil;
     ENSURE_ARG_AT_INDEX(printArg, args, 0, NSDictionary)
     
-    // PDFs need a page number to print
     NSString *pdf = [TiUtils stringValue:@"pdf" properties:printArg def:@""];
     CGFloat width = [TiUtils floatValue:@"width" properties:printArg def:-1];
     CGFloat height = [TiUtils floatValue:@"height" properties:printArg def:-1];
+    BOOL rotate = [TiUtils boolValue:@"rotate" properties:printArg def:NO];
     
     //    NSURL* url = [TiUtils toURL:[args objectForKey:@"url"] proxy:self];
     //    if (url==nil) {
@@ -182,7 +193,7 @@
     if(thisPDF) {
         size_t nPages = CGPDFDocumentGetNumberOfPages(thisPDF);
         for (size_t pageNum = 1; pageNum <= nPages; pageNum++) {
-            UIImage *image = [self imageFromPDF:thisPDF page:pageNum width:width height:height];
+            UIImage *image = [self renderPdfPage:thisPDF pageNumber:pageNum width:width height:height rotate:rotate];
             if(image) {
                 [images addObject:[[[TiBlob alloc] initWithImage:image] autorelease]];
             }
