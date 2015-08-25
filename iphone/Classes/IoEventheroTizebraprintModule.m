@@ -104,7 +104,7 @@
                pageNumber:(size_t)pageNumber
                     width:(CGFloat)width
                    height:(CGFloat)height
-                   rotate:(BOOL)rotate
+                   rotate:(int)rotate
 {
     // Drawing an image of this size
     CGRect imageRect = CGRectMake(0, 0, width, height);
@@ -120,12 +120,15 @@
         NSLog(@"[DEBUG] [TiZebraPrint] CGPDFPageGetBoxRect(page, kCGPDFMediaBox) = [%f, %f, %f, %f]",
               pageRect.origin.x, pageRect.origin.y, pageRect.size.width, pageRect.size.height);
 
-        // PDF units are PDF points (72 points per inch), image units are pixels, need to scale pdf page
-        CGFloat pdfScale = imageRect.size.width / pageRect.size.width;
-        NSLog(@"[DEBUG] [TiZebraPrint] pdfScale = %f", pdfScale);
+        // PDF units are PDF points (72 points per inch), image units are pixels, so need to scale pdf page
+        // However CGPDFPageGetDrawingTransform is not scaling the image to rect that is larger then the media box.
+        // The only useful answer found re CGPDFPageGetDrawingTransform found here
+        // http://stackoverflow.com/questions/3908624/cgcontext-pdf-page-aspect-fit
+        // The solution is to draw PDF page to a rect not larger then media box but set a scaling transform prior.
         CGFloat xScale = imageRect.size.width / pageRect.size.width;
         CGFloat yScale = imageRect.size.height / pageRect.size.height;
         CGFloat scaleToApply = xScale < yScale ? xScale : yScale;
+        NSLog(@"[DEBUG] [TiZebraPrint] scaleToApply = %f", scaleToApply);
         
         CGRect captureRect = CGRectMake(0, 0, imageRect.size.width/scaleToApply, imageRect.size.height/scaleToApply);
 
@@ -140,17 +143,13 @@
 
         CGContextSaveGState(context);
         
-        // This two transforms flip the image upside down
+        // This two transforms flip the image upside down and scale it
         CGContextTranslateCTM(context, 0.0, imageRect.size.height);
-        //CGContextScaleCTM(context, 1.0, -1.0);
+        // the following line combines flipping the image with CGContextScaleCTM(context, 1.0, -1.0) and scaling it to scaleToApply
         CGContextScaleCTM(context, scaleToApply, -scaleToApply);
         
-        int rotateAngle = 0;
-        if (rotate) {
-            rotateAngle = 180;
-        }
         // Create transform mapping PDF rect to drawing rect, no rotation, preserving aspect ratio
-        CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox, captureRect, rotateAngle, true);
+        CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox, captureRect, rotate, true);
         CGContextConcatCTM(context, pdfTransform);
         
         CGContextDrawPDFPage(context, page);
@@ -182,7 +181,7 @@
     NSString *pdf = [TiUtils stringValue:@"pdf" properties:printArg def:@""];
     CGFloat width = [TiUtils floatValue:@"width" properties:printArg def:-1];
     CGFloat height = [TiUtils floatValue:@"height" properties:printArg def:-1];
-    BOOL rotate = [TiUtils boolValue:@"rotate" properties:printArg def:NO];
+    int rotate = [TiUtils intValue:@"rotate" properties:printArg def:0];
     
     //    NSURL* url = [TiUtils toURL:[args objectForKey:@"url"] proxy:self];
     //    if (url==nil) {
