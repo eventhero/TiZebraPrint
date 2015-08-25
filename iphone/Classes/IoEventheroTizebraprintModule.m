@@ -102,25 +102,17 @@
 
 -(UIImage *)imageFromPDF:(CGPDFDocumentRef)pdf page:(size_t)pageNumber width:(CGFloat)width height:(CGFloat)height {
     // Drawing an image of this size
-    CGRect rect = CGRectMake(0, 0, width, height);
+    CGRect imageRect = CGRectMake(0, 0, width, height);
+    NSLog(@"[DEBUG] [TiZebraPrint] CGRectMake(0, 0, width, height) = [%f, %f, %f, %f]",
+          imageRect.origin.x, imageRect.origin.y, imageRect.size.width, imageRect.size.height);
     
     // Start image drawing context
-    UIGraphicsBeginImageContext(rect.size);
+    UIGraphicsBeginImageContext(imageRect.size);
     CGContextRef context = UIGraphicsGetCurrentContext();
     
     // Fill context with white color
-    CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
-    const CGFloat fillColors[] = {1, 1, 1, 1};
-    
-    CGColorRef colorRef = CGColorCreate(rgb, fillColors);
-    CGContextSetFillColorWithColor(context, colorRef);
-    CGContextFillRect(context, rect);
-    CGColorSpaceRelease(rgb);
-    CGColorRelease(colorRef);
-    
-    //    This two transforms flip the image upside down
-    //    CGContextTranslateCTM(context, 0.0, rect.size.height);
-    //    CGContextScaleCTM(context, 1.0, -1.0);
+    CGContextSetRGBFillColor(context, 1.0, 1.0, 1.0, 1.0);
+    CGContextFillRect(context, imageRect);
     
     UIImage *resultingImage = nil;
     
@@ -128,10 +120,23 @@
     if (page != NULL) {
         CGContextSaveGState(context);
         
-        // Create transform mapping PDF rect to drawing rect, no rotation, preserving aspect ratio
-        CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFCropBox, rect, 0, true);
+        // kCGPDFMediaBox is the max rect usually equal to the printed page size
+        CGRect pageRect = CGPDFPageGetBoxRect(page, kCGPDFMediaBox);
+        NSLog(@"[DEBUG] [TiZebraPrint] CGPDFPageGetBoxRect(page, kCGPDFMediaBox) = [%f, %f, %f, %f]",
+              pageRect.origin.x, pageRect.origin.y, pageRect.size.width, pageRect.size.height);
         
-        CGContextConcatCTM(context, pdfTransform);
+        // This two transforms flip the image upside down
+        CGContextTranslateCTM(context, 0.0, imageRect.size.height);
+        CGContextScaleCTM(context, 1.0, -1.0);
+        
+        // Create transform mapping PDF rect to drawing rect, no rotation, preserving aspect ratio
+        // CGAffineTransform pdfTransform = CGPDFPageGetDrawingTransform(page, kCGPDFMediaBox, imageRect, 0, true);
+        // CGContextConcatCTM(context, pdfTransform);
+        
+        CGFloat pdfScale = imageRect.size.width / pageRect.size.width;
+        NSLog(@"[DEBUG] [TiZebraPrint] pdfScale = %f", pdfScale);
+        // PDF units are PDF points (72 points per inch), image units are pixels, need to scale pdf page
+        CGContextScaleCTM(context, pdfScale, pdfScale);
         
         CGContextDrawPDFPage(context, page);
         
@@ -149,11 +154,11 @@
 
 // Rendering PDF to images has little to do with printing and can be reused with multiple printer drivers.
 // This method needs to be pulled out into a separate shared module
--(void)renderPdf:(id)args
+-(id)renderPdf:(id)args
 {
     NSLog(@"[DEBUG] [TiZebraPrint] renderPdf() args %@",args);
     
-    ENSURE_ARG_COUNT(args, 2);
+    ENSURE_ARG_COUNT(args, 1);
     
     NSDictionary *printArg = nil;
     ENSURE_ARG_AT_INDEX(printArg, args, 0, NSDictionary)
@@ -168,30 +173,25 @@
     //        NSLog(@"[ERROR] Print called without passing in a url property!");
     //        return;
     //    }
-
-    KrollCallback *callback = nil;
-    ENSURE_ARG_AT_INDEX(callback, args, 1, KrollCallback)
     
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        
-        NSMutableArray *images = [NSMutableArray array];
-        
-        CFURLRef url = (__bridge CFURLRef)[NSURL fileURLWithPath:pdf];
-        CGPDFDocumentRef thisPDF = CGPDFDocumentCreateWithURL(url);
-        if(thisPDF) {
-            size_t nPages = CGPDFDocumentGetNumberOfPages(thisPDF);
-            for (size_t pageNum = 1; pageNum <= nPages; pageNum++) {
-                UIImage *image = [self imageFromPDF:thisPDF page:pageNum width:width height:height];
-                if(image) {
-                    [images addObject:[[[TiBlob alloc] initWithImage:image] autorelease]];
-                }
+    
+    NSMutableArray *images = [NSMutableArray array];
+    
+    CFURLRef url = (__bridge CFURLRef)[NSURL fileURLWithPath:pdf];
+    CGPDFDocumentRef thisPDF = CGPDFDocumentCreateWithURL(url);
+    if(thisPDF) {
+        size_t nPages = CGPDFDocumentGetNumberOfPages(thisPDF);
+        for (size_t pageNum = 1; pageNum <= nPages; pageNum++) {
+            UIImage *image = [self imageFromPDF:thisPDF page:pageNum width:width height:height];
+            if(image) {
+                [images addObject:[[[TiBlob alloc] initWithImage:image] autorelease]];
             }
         }
-        
-        CGPDFDocumentRelease(thisPDF); // works even when thisPDF is NULL
-        
-        [TiCallback performSuccessCallback:callback withKey:@"images" andValue:images];
-    });
+    }
+    
+    CGPDFDocumentRelease(thisPDF); // works even when thisPDF is NULL
+    
+    return images;
 }
 
 -(void)findBluetoothPrinters:(id)args
