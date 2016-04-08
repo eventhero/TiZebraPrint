@@ -7,16 +7,7 @@
 
 #import "TiModule.h"
 
-#import "ZebraPrinter.h"
-#import "ZebraPrinterConnection.h"
-
 @interface IoEventheroTizebraprintModule : TiModule
 {
 }
-
-@property (nonatomic, retain) NSMutableArray *networkPrintersList;
-@property (nonatomic,retain) NSMutableArray *bluetoothPrintersList;
-@property (nonatomic, retain) id<ZebraPrinterConnection, NSObject> connection;
-@property (nonatomic, retain) id<ZebraPrinter, NSObject> printer;
-
 @end
